@@ -3,8 +3,9 @@ from xml.sax.saxutils import escape
 import mysql.connector
 
 def register_edge(station_mac, ssid):
+    print(station_mac, ssid)
     cur.execute('SELECT 1 FROM vifi.edges WHERE station_mac="{}" AND ssid="{}"'.format(station_mac, ssid))
-    r=cur.fetchall()
+    r = cur.fetchall()
     if r == []:
         cur.execute('INSERT INTO vifi.edges VALUES({},{},"{}","{}")'.format(time.time(),time.time(),station_mac, ssid))
     else:
@@ -32,4 +33,4 @@ cur.execute('CREATE DATABASE IF NOT EXISTS vifi;')
 cur.execute('CREATE TABLE IF NOT EXISTS vifi.edges(first_seen DOUBLE, last_seen DOUBLE, station_mac TEXT, ssid TEXT);')
 cnx.commit()
 
-sniff(iface="rename7", prn = PacketHandler)
+sniff(iface="rename7", store=0, prn = PacketHandler)
