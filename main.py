@@ -24,16 +24,21 @@ def PacketHandler(pkt):
         except AttributeError:
             pass
 
-config = {
-    'user': 'root',
-    'password': 'eviltwin',
-    'host': '127.0.0.1'
-}
-cnx = mysql.connector.connect(**config)
-cur = cnx.cursor()
+cnx, cur = None, None
+def main():
+    config = {
+        'user': 'root',
+        'password': 'eviltwin',
+        'host': '127.0.0.1'
+    }
+    cnx = mysql.connector.connect(**config)
+    cur = cnx.cursor()
 
-cur.execute('CREATE DATABASE IF NOT EXISTS vifi;')
-cur.execute('CREATE TABLE IF NOT EXISTS vifi.edges(first_seen DOUBLE, last_seen DOUBLE, station_mac TEXT, ssid TEXT);')
-cnx.commit()
+    cur.execute('CREATE DATABASE IF NOT EXISTS vifi;')
+    cur.execute('CREATE TABLE IF NOT EXISTS vifi.edges(first_seen DOUBLE, last_seen DOUBLE, station_mac TEXT, ssid TEXT);')
+    cnx.commit()
 
-sniff(iface="rename7", store=0, prn = PacketHandler)
+    sniff(iface="rename7", store=0, prn = PacketHandler)
+
+if __name__ == '__main__':
+    main()
