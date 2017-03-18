@@ -4,22 +4,25 @@ import mysql.connector
 
 def register_edge(station_mac, ssid):
     print(station_mac, ssid)
-    cur.execute('SELECT 1 FROM vifi.edges WHERE station_mac="{}" AND ssid="{}"'.format(station_mac, ssid))
+    cur.execute('SELECT 1 FROM vifi.edges WHERE station_mac=%s AND ssid=%s', (station_mac, ssid))
     r = cur.fetchall()
     if r == []:
-        cur.execute('INSERT INTO vifi.edges VALUES({},{},"{}","{}")'.format(time.time(),time.time(),station_mac, ssid))
+        cur.execute('INSERT INTO vifi.edges VALUES(%s,%s,%s,%s)', (time.time(),time.time(),station_mac, ssid))
     else:
-        cur.execute('UPDATE vifi.edges SET last_seen={} WHERE station_mac="{}" AND ssid="{}"'.format(time.time(),station_mac,ssid))
+        cur.execute('UPDATE vifi.edges SET last_seen=%s WHERE station_mac=%s AND ssid=%s', (time.time(),station_mac,ssid))
     cnx.commit()
 
 def PacketHandler(pkt):
     if pkt.haslayer(Dot11):
-        if pkt.type == 0 and pkt.subtype == 4 and pkt.info != '':
-            probed_ssid = escape(pkt.info)
-            probing_mac = escape(pkt.addr2)
-            if probed_ssid != pkt.info:
-                return #Hack
-            register_edge(probing_mac, probed_ssid)
+        try:
+            if pkt.type == 0 and pkt.subtype == 4 and pkt.info != '':
+                probed_ssid = escape(pkt.info)
+                probing_mac = escape(pkt.addr2)
+                if probed_ssid != pkt.info:
+                    return #Hack
+                register_edge(probing_mac, probed_ssid)
+        except AttributeError:
+            pass
 
 config = {
     'user': 'root',
