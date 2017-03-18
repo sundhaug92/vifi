@@ -1,5 +1,6 @@
 from flask import Flask
 import mysql.connector
+import re
 
 app = Flask(__name__)
 
@@ -38,6 +39,42 @@ def show_mac(mac):
 @app.route("/show_ssid/<ssid>")
 def show_ssid(ssid):
     return get_document(ssid=ssid)
+
+def get_nodes():
+    cur.execute('SELECT DISTINCT station_mac FROM vifi.edges')
+    nodes = cur.fetchall()
+    cur.execute('SELECT DISTINCT ssid FROM vifi.edges')
+    nodes += cur.fetchall()
+    nodes = list(set(nodes))
+    return [n[0].encode('ascii', 'ignore') for n in nodes]
+
+@app.route("/api/nodes.js")
+def api_nodes():
+    nodes = get_nodes()
+    document = 'var nodes = ['
+    for node_id in range(len(nodes)):
+        is_phone = re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', nodes[node_id]) != None
+        document += '{id: %s, label: "%s", shape: "image", image: "%s" },' % (node_id, nodes[node_id].encode('ascii', 'ignore'), '\\'+
+        {True:'Hardware-My-PDA-02-icon.png', False:'Network-Pipe-icon.png'}[is_phone])
+    document = document[:-1] + '];'
+    return document
+
+@app.route("/api/edges.js")
+def api_edges():
+    nodes = get_nodes()
+    document = 'var edges = ['
+    cur.execute('SELECT station_mac, ssid FROM vifi.edges')
+    edges = cur.fetchall()
+    for (mac, ssid) in edges:
+        mac_node_id = str(nodes.index(mac.encode('ascii', 'ignore')))
+        ssid_node_id = str(nodes.index(ssid.encode('ascii', 'ignore')))
+        document += '{from: %s, to: %s},' % (mac_node_id, ssid_node_id)
+    document = document[:-1] + '];'
+    return document
+
+@app.route("/static/<path:path>")
+def send_static(path):
+    flask.send_from_directory(path)
 
 config = {
     'user': 'root',
