@@ -8,11 +8,11 @@ def get_document(ssid=None, mac=None):
     document += '<table><th><b>mac</b></th><th><b>ssid</b></th>\n'
     query='SELECT station_mac, ssid FROM vifi.edges'
     if not ssid is None:
-        query += ' WHERE ssid=%(ssid)s'
+        query += ' WHERE ssid="{}"'.format(ssid)
         if not mac is None:
-            query += ' AND station_mac=%(mac)s'
+            query += ' AND station_mac="{}"'.format(mac)
     elif not mac is None:
-        query += ' WHERE station_mac=%(mac)s'
+        query += ' WHERE station_mac="{}"'.format(mac)
     cur.execute(query)
     macs = []
     ssids = []
