@@ -4,7 +4,7 @@ import re
 
 app = Flask(__name__)
 
-def sql_execute(query, error_level = 0):
+def sql_execute(query):
     config = {
         'user': 'root',
         'password': 'eviltwin',
