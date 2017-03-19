@@ -23,7 +23,14 @@
         nodes: nodes,
         edges: edges
     };
-    var options = {};
+    var options = {
+        "layout": {
+            "improvedLayout": false
+        },
+        "physics": {
+            "stabilization": false
+        }
+    };
 
     // initialize your network!
     var network = new vis.Network(container, data, options);
