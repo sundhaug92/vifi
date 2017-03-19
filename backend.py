@@ -1,6 +1,7 @@
 from scapy.all import *
 from xml.sax.saxutils import escape
 import mysql.connector
+import time
 
 def register_edge(station_mac, ssid):
     global cnx, cur
