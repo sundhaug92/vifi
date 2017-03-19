@@ -15,6 +15,7 @@ def sql_execute(query):
 
     cur.execute(query)
     return_value = cur.fetchall()
+    cnx.commit()
     cur.close()
     cnx.close()
     return return_value
