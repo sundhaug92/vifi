@@ -3,7 +3,15 @@ from xml.sax.saxutils import escape
 import mysql.connector
 
 def register_edge(station_mac, ssid):
+    global cnx, cur
     print(station_mac, ssid)
+    config = {
+        'user': 'root',
+        'password': 'eviltwin',
+        'host': '127.0.0.1'
+    }
+    cnx = mysql.connector.connect(**config)
+    cur = cnx.cursor()
     cur.execute('SELECT 1 FROM vifi.edges WHERE station_mac=%s AND ssid=%s', (station_mac, ssid))
     r = cur.fetchall()
     if r == []:
@@ -11,6 +19,7 @@ def register_edge(station_mac, ssid):
     else:
         cur.execute('UPDATE vifi.edges SET last_seen=%s WHERE station_mac=%s AND ssid=%s', (time.time(),station_mac,ssid))
     cnx.commit()
+    cnx.close()
 
 def PacketHandler(pkt):
     if pkt.haslayer(Dot11):
@@ -26,6 +35,7 @@ def PacketHandler(pkt):
 
 cnx, cur = None, None
 def main():
+    global cnx, cur
     config = {
         'user': 'root',
         'password': 'eviltwin',
@@ -37,7 +47,7 @@ def main():
     cur.execute('CREATE DATABASE IF NOT EXISTS vifi;')
     cur.execute('CREATE TABLE IF NOT EXISTS vifi.edges(first_seen DOUBLE, last_seen DOUBLE, station_mac TEXT, ssid TEXT);')
     cnx.commit()
-
+    cnx.close()
     sniff(iface="rename7", store=0, prn = PacketHandler)
 
 if __name__ == '__main__':
