@@ -1,3 +1,4 @@
+import datetime
 from flask import Flask
 import mysql.connector
 import re
@@ -61,27 +62,72 @@ def get_nodes():
     nodes = list(set(nodes))
     return [n[0].encode('ascii', 'ignore') for n in nodes]
 
+def get_mac_metadata(mac_addr):
+    meta = sql_execute('SELECT manufacturer FROM vifi.mac_meta WHERE station_mac="{}"'.format(mac_addr))
+    if meta == [] or meta is None:
+        return ''
+    return 'Manufacturer: ' + meta[0][0] + '<br/>'
+
+def get_timestamp_string(timestamp):
+    return datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+def get_node_type(node_name):
+    if re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', node_name) == None:
+        return 'SSID'
+    assoc_types = [_[0].decode('ascii', 'ignore') for _ in sql_execute('SELECT DISTINCT assoc_type FROM vifi.edges WHERE station_mac="{}"'.format(node_name))]
+    manufacturer = sql_execute('SELECT manufacturer FROM vifi.mac_meta WHERE station_mac="{}"'.format(node_name))
+    if manufacturer != []:
+        manufacturer = manufacturer[0][0].encode('ascii')
+    else:
+        manufacturer = ''
+    ap_like = any([_ in ['BEACON', 'PROBE_RESPONSE_FROM'] for _ in assoc_types])
+    client_like = any([_ in ['PROBE_RESPONSE_TO', 'PROBE_REQUEST'] for _ in assoc_types])
+    if ap_like and client_like:
+        return 'AP/client'
+    elif ap_like:
+        return 'AP'
+    elif client_like:
+        if manufacturer == 'Apple, Inc.':
+            return 'Apple client device'
+        if manufacturer == 'Google Inc':
+            return 'Google client device'
+        if manufacturer == 'Intel Corporate':
+            return 'Intel client device'
+        if manufacturer.startswith('Samsung '):
+            return 'Samsung client device'
+        return 'Client'
+    else:
+        return 'Unknown'
 
 def get_node_metadata(node_name):
     document_fragment = ''
+    timestamps = list(sql_execute('SELECT first_seen,last_seen FROM vifi.edges WHERE station_mac="{}" OR ssid="{}"'.format(node_name, node_name)))
     if not re.match(r'([0-9a-f]{2}\:?){6}', node_name) is None and sql_execute('SELECT 1 FROM vifi.edges WHERE station_mac="{}"'.format(node_name)) != []: #MAC
-        document_fragment += '<b>Client</b><br/><br/>'
+        document_fragment += '<b>{}</b><br/>'.format(get_node_type(node_name))
+        document_fragment += get_mac_metadata(node_name) + '<br/>'
+        document_fragment += '<b>First seen: </b>' + get_timestamp_string(timestamps[0][0]) +'<br/>'
+        document_fragment += '<b>Last seen: </b>' + get_timestamp_string(timestamps[-1][1]) +'<br/>'
         document_fragment += '<b>Related SSIDs</b><br/>'
-        document_fragment += '<br/>'.join(sorted([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))]))
+        document_fragment += '<br/>'.join(set(sorted([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))])))
     else: # SSID
-        document_fragment += '<b>SSID</b><br/><br/>'
-        document_fragment += '<b>Related clients</b><br/>'
-        document_fragment += '<br/>'.join(sorted([_[0] for _ in sql_execute('SELECT station_mac FROM vifi.edges WHERE ssid="{}"'.format(node_name))]))
+        document_fragment += '<b>SSID</b><br/>'
+        document_fragment += '<b>First seen: </b>' + get_timestamp_string(timestamps[0][0]) +'<br/>'
+        document_fragment += '<b>Last seen: </b>' +get_timestamp_string(timestamps[-1][1]) +'<br/>'
+        document_fragment += '<b>Related devices</b><br/>'
+        document_fragment += '<br/>'.join(set(sorted([_[0] for _ in sql_execute('SELECT station_mac FROM vifi.edges WHERE ssid="{}"'.format(node_name))])))
     return document_fragment
+    
 
 @app.route("/api/nodes.js")
 def api_nodes():
     nodes = get_nodes()
     document = 'var nodes = ['
     for node_id in range(len(nodes)):
-        is_phone = re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', nodes[node_id]) != None
-        document += '{id: %s, label: "%s", shape: "image", image: "%s", title: "%s" },' % (node_id, nodes[node_id].encode('ascii', 'ignore'), 
-        {True:'Hardware-My-PDA-02-icon.png', False:'Network-Pipe-icon.png'}[is_phone], get_node_metadata(nodes[node_id]))
+        image_dict = {'Unknown':'Hardware-My-PDA-02-icon.png', 'AP':'ap.png', 'Client':'Hardware-My-PDA-02-icon.png','AP/client':'Hardware-My-PDA-02-icon.png','SSID':'Network-Pipe-icon.png', 
+                      'Apple client device':'apple.jpg', 'Google client device': 'google.png', 'Intel client device': 'intel.ico', 'Samsung client device': 'samsung.jpg'}
+        image_url = image_dict[get_node_type(nodes[node_id])]
+        document += '{id: %s, label: "%s", shape: "image", image: "%s", title: "%s" },' % (node_id, nodes[node_id].encode('ascii', 'ignore'),
+        image_url, get_node_metadata(nodes[node_id]))
     document = document[:-1] + '];'
     return document
 
@@ -89,11 +135,14 @@ def api_nodes():
 def api_edges():
     nodes = get_nodes()
     document = 'var edges = ['
-    edges = sql_execute('SELECT station_mac, ssid FROM vifi.edges')
-    for (mac, ssid) in edges:
+    edges = sql_execute('SELECT first_seen, last_seen, station_mac, ssid, assoc_type FROM vifi.edges')
+    for (first_seen, last_seen, mac, ssid, assoc_type) in edges:
         mac_node_id = str(nodes.index(mac.encode('ascii', 'ignore')))
         ssid_node_id = str(nodes.index(ssid.encode('ascii', 'ignore')))
-        document += '{from: %s, to: %s},' % (mac_node_id, ssid_node_id)
+        if assoc_type == 'PROBE_RESPONSE_TO':
+            document += '{from: %s, to: %s, title: "%s: %s->%s<br/>First seen: %s<br/>Last seen: %s"},' % (mac_node_id, ssid_node_id, assoc_type, ssid.encode('ascii', 'ignore'), mac,  get_timestamp_string(first_seen),  get_timestamp_string(last_seen))
+        else:
+            document += '{from: %s, to: %s, title: "%s: %s->%s<br/>First seen: %s<br/>Last seen: %s"},' % (mac_node_id, ssid_node_id, assoc_type, mac, ssid.encode('ascii', 'ignore'),  get_timestamp_string(first_seen),  get_timestamp_string(last_seen))
     document = document[:-1] + '];'
     return document
 
