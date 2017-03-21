@@ -61,14 +61,27 @@ def get_nodes():
     nodes = list(set(nodes))
     return [n[0].encode('ascii', 'ignore') for n in nodes]
 
+
+def get_node_metadata(node_name):
+    document_fragment = ''
+    if not re.match(r'([0-9a-f]{2}\:?){6}', node_name) is None and sql_execute('SELECT 1 FROM vifi.edges WHERE station_mac="{}"'.format(node_name)) != []: #MAC
+        document_fragment += '<b>Client</b><br/><br/>'
+        document_fragment += '<b>Related SSIDs</b><br/>'
+        document_fragment += '<br/>'.join(sorted([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))]))
+    else: # SSID
+        document_fragment += '<b>SSID</b><br/><br/>'
+        document_fragment += '<b>Related clients</b><br/>'
+        document_fragment += '<br/>'.join(sorted([_[0] for _ in sql_execute('SELECT station_mac FROM vifi.edges WHERE ssid="{}"'.format(node_name))]))
+    return document_fragment
+
 @app.route("/api/nodes.js")
 def api_nodes():
     nodes = get_nodes()
     document = 'var nodes = ['
     for node_id in range(len(nodes)):
         is_phone = re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', nodes[node_id]) != None
-        document += '{id: %s, label: "%s", shape: "image", image: "%s" },' % (node_id, nodes[node_id].encode('ascii', 'ignore'), 
-        {True:'Hardware-My-PDA-02-icon.png', False:'Network-Pipe-icon.png'}[is_phone])
+        document += '{id: %s, label: "%s", shape: "image", image: "%s", title: "%s" },' % (node_id, nodes[node_id].encode('ascii', 'ignore'), 
+        {True:'Hardware-My-PDA-02-icon.png', False:'Network-Pipe-icon.png'}[is_phone], get_node_metadata(nodes[node_id]))
     document = document[:-1] + '];'
     return document
 
