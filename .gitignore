@@ -1,2 +1,5 @@
 *.gexf
 *.pyc
+*.jpg
+*.png
+*.ico
