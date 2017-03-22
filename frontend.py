@@ -22,7 +22,12 @@ def sql_execute(query):
     return return_value
 
 def get_document(ssid=None, mac=None):
-    document = ''
+    document = '<html><head><title> OldUI ViFi'
+    if not ssid is None:
+        document += ' - SSID: ' + ssid
+    elif not mac is None:
+        document += ' - MAC: ' + mac
+    document += '</title></head><body>'
     document += '<table><th><b>first_seen</b></th><th><b>last_seen</b></th><th><b>mac</b></th><th><b>ssid</b></th><th><b>assoc_type</b></th>\n'
     query='SELECT station_mac, ssid, assoc_type, first_seen, last_seen FROM vifi.edges'
     if not ssid is None:
@@ -42,6 +47,7 @@ def get_document(ssid=None, mac=None):
     document += '</table>\n\n'
     document += '<table><th><b>Edges</b></th><th><b>Unique MACs</b></td><th><b>Unique SSIDs</b></th>'
     document += '<tr><td>{}</td><td>{}<td>{}</td></tr></table>\n\n'.format(edge_count, len(set(macs)), len(set(ssids)))
+    document += '</body></html>'
     return document
 
 @app.route("/")
