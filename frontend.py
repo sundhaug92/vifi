@@ -108,13 +108,13 @@ def get_node_metadata(node_name):
         document_fragment += '<b>First seen: </b>' + get_timestamp_string(timestamps[0][0]) +'<br/>'
         document_fragment += '<b>Last seen: </b>' + get_timestamp_string(timestamps[-1][1]) +'<br/>'
         document_fragment += '<b>Related SSIDs</b><br/>'
-        document_fragment += '<br/>'.join(set(sorted([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))])))
+        document_fragment += '<br/>'.join(sorted(set([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))])))
     else: # SSID
         document_fragment += '<b>SSID</b><br/>'
         document_fragment += '<b>First seen: </b>' + get_timestamp_string(timestamps[0][0]) +'<br/>'
         document_fragment += '<b>Last seen: </b>' +get_timestamp_string(timestamps[-1][1]) +'<br/>'
         document_fragment += '<b>Related devices</b><br/>'
-        document_fragment += '<br/>'.join(set(sorted([_[0] for _ in sql_execute('SELECT station_mac FROM vifi.edges WHERE ssid="{}"'.format(node_name))])))
+        document_fragment += '<br/>'.join(sorted(set([_[0] for _ in sql_execute('SELECT station_mac FROM vifi.edges WHERE ssid="{}"'.format(node_name))])))
     return document_fragment
     
 
