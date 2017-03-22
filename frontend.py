@@ -23,8 +23,8 @@ def sql_execute(query):
 
 def get_document(ssid=None, mac=None):
     document = ''
-    document += '<table><th><b>mac</b></th><th><b>ssid</b></th>\n'
-    query='SELECT station_mac, ssid FROM vifi.edges'
+    document += '<table><th><b>first_seen</b></th><th><b>last_seen</b></th><th><b>mac</b></th><th><b>ssid</b></th><th><b>assoc_type</b></th>\n'
+    query='SELECT station_mac, ssid, assoc_type, first_seen, last_seen FROM vifi.edges'
     if not ssid is None:
         query += ' WHERE ssid="{}"'.format(ssid)
         if not mac is None:
@@ -35,7 +35,7 @@ def get_document(ssid=None, mac=None):
     ssids = []
     edge_count = 0
     for edge in sql_execute(query):
-        document += '<tr><td><a href="/show_mac/{}">{}</a></td><td><a href="/show_ssid/{}">{}</a></td></tr>\n'.format(edge[0], edge[0], edge[1], edge[1])
+        document += '<tr><td>{}</td><td>{}</td><td><a href="/show_mac/{}">{}</a></td><td><a href="/show_ssid/{}">{}</a></td><td>{}</td></tr>\n'.format(get_timestamp_string(edge[3]), get_timestamp_string(edge[4]), edge[0], edge[0], edge[1], edge[1], edge[2])
         macs.append(edge[0])
         ssids.append(edge[1])
         edge_count += 1
