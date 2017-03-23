@@ -2,6 +2,7 @@ from scapy.all import *
 from xml.sax.saxutils import escape
 import mysql.connector
 import os.path
+import subprocess
 import sys
 from macpy import Mac
 
@@ -36,8 +37,12 @@ def register_edge(assoc_type, station_mac, ssid, timestamp):
     cnx.commit()
     cnx.close()
 
+checked_macs = []
 def register_mac_meta(station_mac):
-#    if True:return
+    global checked_macs
+    if station_mac in checked_macs:
+        return
+    checked_macs = (checked_macs + [station_mac])[:20]
     if station_mac[1] in ['2', '6', 'a', 'A', 'e', 'E']:
         return
     config = {
@@ -53,11 +58,8 @@ def register_mac_meta(station_mac):
         cur.close()
         cnx.close()
         return
-    manufacturer = Mac().search(station_mac.upper())
-    if not (manufacturer is None or manufacturer['com'] == ''):
-        cur.execute('INSERT INTO vifi.mac_meta VALUES("{}","{}")'.format(station_mac, manufacturer['com']))
-        cnx.commit()
-        cnx.close()
+    subprocess.Popen(['nice', 'python', 'midware-macmeta.py', station_mac])
+    return
 
 def PacketHandler(pkt):
     if pkt.haslayer(Dot11):
@@ -111,7 +113,7 @@ def main():
     cnx = mysql.connector.connect(**config)
     cur = cnx.cursor()
 
-#    cur.execute('DROP DATABASE vifi;')
+    cur.execute('DROP DATABASE vifi;')
     cur.execute('CREATE DATABASE IF NOT EXISTS vifi;')
     cur.execute('CREATE TABLE IF NOT EXISTS vifi.edges(first_seen DOUBLE, last_seen DOUBLE, assoc_type TEXT, station_mac TEXT, ssid TEXT);')
     cur.execute('CREATE TABLE IF NOT EXISTS vifi.mac_meta(station_mac TEXT, manufacturer TEXT);')
