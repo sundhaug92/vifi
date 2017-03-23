@@ -124,8 +124,8 @@ def get_node_metadata(node_name):
     return document_fragment
     
 
-@app.route("/api/nodes.js")
-def api_nodes():
+@app.route("/api/graph.js")
+def api_graph():
     nodes = get_nodes()
     document = 'var nodes = ['
     for node_id in range(len(nodes)):
@@ -135,12 +135,7 @@ def api_nodes():
         document += '{id: %s, label: "%s", shape: "image", image: "%s", title: "%s" },' % (node_id, nodes[node_id].encode('ascii', 'ignore'),
         image_url, get_node_metadata(nodes[node_id]))
     document = document[:-1] + '];'
-    return document
-
-@app.route("/api/edges.js")
-def api_edges():
-    nodes = get_nodes()
-    document = 'var edges = ['
+    document += 'var edges = ['
     edges = sql_execute('SELECT first_seen, last_seen, station_mac, ssid, assoc_type FROM vifi.edges')
     for (first_seen, last_seen, mac, ssid, assoc_type) in edges:
         mac_node_id = str(nodes.index(mac.encode('ascii', 'ignore')))
