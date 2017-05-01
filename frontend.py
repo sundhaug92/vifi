@@ -2,6 +2,7 @@ import datetime
 from flask import Flask
 import mysql.connector
 import re
+import time
 
 app = Flask(__name__)
 
@@ -64,7 +65,9 @@ def show_ssid(ssid):
 
 def get_nodes():
     nodes = sql_execute('SELECT DISTINCT station_mac FROM vifi.edges') + \
-            sql_execute('SELECT DISTINCT ssid FROM vifi.edges')
+            sql_execute('SELECT DISTINCT ssid FROM vifi.edges') + \
+            sql_execute('SELECT DISTINCT mac1 FROM vifi.mac2mac') + \
+            sql_execute('SELECT DISTINCT mac2 FROM vifi.mac2mac')
     nodes = list(set(nodes))
     return [n[0].encode('ascii', 'ignore') for n in nodes]
 
@@ -107,22 +110,42 @@ def get_node_type(node_name):
 
 def get_node_metadata(node_name):
     document_fragment = ''
-    timestamps = list(sql_execute('SELECT first_seen,last_seen FROM vifi.edges WHERE station_mac="{}" OR ssid="{}"'.format(node_name, node_name)))
-    if not re.match(r'([0-9a-f]{2}\:?){6}', node_name) is None and sql_execute('SELECT 1 FROM vifi.edges WHERE station_mac="{}"'.format(node_name)) != []: #MAC
+    first_seen = time.time() + 3600
+    last_seen = 0
+    if sql_execute('SELECT 1 FROM vifi.edges WHERE station_mac="{}" OR ssid="{}"'.format(node_name,node_name)) != []:
+        first_seen = float(sql_execute('SELECT first_seen FROM vifi.edges WHERE station_mac="{}" OR ssid="{}" ORDER BY first_seen ASC'.format(node_name,node_name))[0][0])
+        last_seen = float(sql_execute('SELECT last_seen FROM vifi.edges WHERE station_mac="{}" OR ssid="{}" ORDER BY last_seen DESC'.format(node_name,node_name))[0][0])
+    if sql_execute('SELECT 1 FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}"'.format(node_name,node_name)) != []:
+        m2m_f = float(sql_execute('SELECT first_seen FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}" ORDER BY first_seen ASC'.format(node_name,node_name))[0][0])
+        m2m_l = float(sql_execute('SELECT last_seen FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}" ORDER BY last_seen DESC'.format(node_name,node_name))[0][0])
+        if m2m_f < first_seen:first_seen = m2m_f
+        if m2m_l > last_seen:last_seen = m2m_l
+    if not re.match(r'([0-9a-f]{2}\:?){6}', node_name) is None and (sql_execute('SELECT 1 FROM vifi.edges WHERE station_mac="{}"'.format(node_name)) != [] or \
+        sql_execute('SELECT 1 FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}"'.format(node_name, node_name)) != []): #MAC
         document_fragment += '<b>{}</b><br/>'.format(get_node_type(node_name))
         document_fragment += get_mac_metadata(node_name) + '<br/>'
-        document_fragment += '<b>First seen: </b>' + get_timestamp_string(timestamps[0][0]) +'<br/>'
-        document_fragment += '<b>Last seen: </b>' + get_timestamp_string(timestamps[-1][1]) +'<br/>'
-        document_fragment += '<b>Related SSIDs</b><br/>'
-        document_fragment += '<br/>'.join(sorted(set([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))])))
+        document_fragment += '<b>First seen: </b>' + get_timestamp_string(first_seen) +'<br/>'
+        document_fragment += '<b>Last seen: </b>' + get_timestamp_string(last_seen) +'<br/>'
+        if len(sql_execute('SELECT mac1,mac2 FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}"'.format(node_name,node_name))) > 0:
+            document_fragment += '<b>Related devices</b><br/>'
+            m2m_edges=sql_execute('SELECT mac1,mac2 FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}"'.format(node_name,node_name))
+            m2m_macs=[]
+            for edge in m2m_edges:
+                if node_name != edge[0]: m2m_macs.append(edge[0])
+                else: m2m_macs.append(edge[1])
+            m2m_macs=set(m2m_macs)
+            for mac in m2m_macs:
+                document_fragment += mac + '<br/>'
+        if len([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))]) > 0:
+            document_fragment += '<b>Related SSIDs</b><br/>'
+            document_fragment += '<br/>'.join(sorted(set([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))])))
     else: # SSID
         document_fragment += '<b>SSID</b><br/>'
-        document_fragment += '<b>First seen: </b>' + get_timestamp_string(timestamps[0][0]) +'<br/>'
-        document_fragment += '<b>Last seen: </b>' +get_timestamp_string(timestamps[-1][1]) +'<br/>'
+        document_fragment += '<b>First seen: </b>' + get_timestamp_string(first_seen) +'<br/>'
+        document_fragment += '<b>Last seen: </b>' +get_timestamp_string(last_seen) +'<br/>'
         document_fragment += '<b>Related devices</b><br/>'
         document_fragment += '<br/>'.join(sorted(set([_[0] for _ in sql_execute('SELECT station_mac FROM vifi.edges WHERE ssid="{}"'.format(node_name))])))
     return document_fragment
-    
 
 @app.route("/api/graph.js")
 def api_graph():
@@ -137,7 +160,10 @@ def api_graph():
     document = document[:-1] + '];'
     document += 'var edges = ['
     edges = sql_execute('SELECT first_seen, last_seen, station_mac, ssid, assoc_type FROM vifi.edges')
+    edges += sql_execute('SELECT first_seen, last_seen, mac1, mac2, "mac2mac" FROM vifi.mac2mac')
     for (first_seen, last_seen, mac, ssid, assoc_type) in edges:
+        if mac.encode('ascii','ignore') not in nodes or ssid.encode('ascii','ignore') not in nodes:
+            return api_graph()
         mac_node_id = str(nodes.index(mac.encode('ascii', 'ignore')))
         ssid_node_id = str(nodes.index(ssid.encode('ascii', 'ignore')))
         if assoc_type == 'PROBE_RESPONSE_TO':
