@@ -127,7 +127,7 @@ def get_node_metadata(node_name):
         document_fragment += '<b>First seen: </b>' + get_timestamp_string(first_seen) +'<br/>'
         document_fragment += '<b>Last seen: </b>' + get_timestamp_string(last_seen) +'<br/>'
         if len(sql_execute('SELECT mac1,mac2 FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}"'.format(node_name,node_name))) > 0:
-            document_fragment += '<b>Related devices</b><br/>'
+            document_fragment += '<b>Related devices:</b><br/>'
             m2m_edges=sql_execute('SELECT mac1,mac2 FROM vifi.mac2mac WHERE mac1="{}" OR mac2="{}"'.format(node_name,node_name))
             m2m_macs=[]
             for edge in m2m_edges:
@@ -137,13 +137,13 @@ def get_node_metadata(node_name):
             for mac in m2m_macs:
                 document_fragment += mac + '<br/>'
         if len([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))]) > 0:
-            document_fragment += '<b>Related SSIDs</b><br/>'
+            document_fragment += '<b>Related SSIDs:</b><br/>'
             document_fragment += '<br/>'.join(sorted(set([_[0] for _ in sql_execute('SELECT ssid FROM vifi.edges WHERE station_mac="{}"'.format(node_name))])))
     else: # SSID
         document_fragment += '<b>SSID</b><br/>'
         document_fragment += '<b>First seen: </b>' + get_timestamp_string(first_seen) +'<br/>'
         document_fragment += '<b>Last seen: </b>' +get_timestamp_string(last_seen) +'<br/>'
-        document_fragment += '<b>Related devices</b><br/>'
+        document_fragment += '<b>Related devices:</b><br/>'
         document_fragment += '<br/>'.join(sorted(set([_[0] for _ in sql_execute('SELECT station_mac FROM vifi.edges WHERE ssid="{}"'.format(node_name))])))
     return document_fragment
 
@@ -155,7 +155,7 @@ def api_graph():
         image_dict = {'Unknown':'Hardware-My-PDA-02-icon.png', 'AP':'ap.png', 'Client':'Hardware-My-PDA-02-icon.png','AP/client':'Hardware-My-PDA-02-icon.png','SSID':'Network-Pipe-icon.png', 
                       'Apple client device':'apple.jpg', 'Google client device': 'google.png', 'Intel client device': 'intel.ico', 'Samsung client device': 'samsung.jpg'}
         image_url = image_dict[get_node_type(nodes[node_id])]
-        document += '{id: %s, label: "%s", shape: "image", image: "%s", title: "%s" },' % (node_id, nodes[node_id].encode('ascii', 'ignore'),
+        document += '{id: %s, label: "%s", shape: "image", image: "%s", title: "%s", color: {color: "blue", hover: "red", highlight: "red" }},' % (node_id, nodes[node_id].encode('ascii', 'ignore'),
         image_url, get_node_metadata(nodes[node_id]))
     document = document[:-1] + '];'
     document += 'var edges = ['
@@ -167,9 +167,9 @@ def api_graph():
         mac_node_id = str(nodes.index(mac.encode('ascii', 'ignore')))
         ssid_node_id = str(nodes.index(ssid.encode('ascii', 'ignore')))
         if assoc_type == 'PROBE_RESPONSE_TO':
-            document += '{from: %s, to: %s, title: "%s: %s->%s<br/>First seen: %s<br/>Last seen: %s"},' % (mac_node_id, ssid_node_id, assoc_type, ssid.encode('ascii', 'ignore'), mac,  get_timestamp_string(first_seen),  get_timestamp_string(last_seen))
+            document += '{from: %s, to: %s, title: "%s: %s->%s<br/>First seen: %s<br/>Last seen: %s", color: {color: "blue", hover: "red", highlight: "red"}},' % (mac_node_id, ssid_node_id, assoc_type, ssid.encode('ascii', 'ignore'), mac,  get_timestamp_string(first_seen),  get_timestamp_string(last_seen))
         else:
-            document += '{from: %s, to: %s, title: "%s: %s->%s<br/>First seen: %s<br/>Last seen: %s"},' % (mac_node_id, ssid_node_id, assoc_type, mac, ssid.encode('ascii', 'ignore'),  get_timestamp_string(first_seen),  get_timestamp_string(last_seen))
+            document += '{from: %s, to: %s, title: "%s: %s->%s<br/>First seen: %s<br/>Last seen: %s", color: {color: "blue", hover: "red", highlight: "red"}},' % (mac_node_id, ssid_node_id, assoc_type, mac, ssid.encode('ascii', 'ignore'),  get_timestamp_string(first_seen),  get_timestamp_string(last_seen))
     document = document[:-1] + '];'
     return document
 
