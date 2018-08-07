@@ -69,7 +69,7 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
     elif connection_type in ['EAP/IDENTITY/RECV_RESPONSE']:
         from_node = Node('identity', identity=from_node_name)
         to_node = Node('device', mac_address=to_node_name)
-    elif connection_type in ['ARP/IS_AT', 'ARP/WHO_HAS', 'DHCP/ACK/ROUTER', 'DHCP/ACK/NAME_SERVER']:
+    elif connection_type in ['ARP/IS_AT', 'ARP/WHO_HAS', 'DHCP/ACK/ROUTER', 'DHCP/ACK/NAME_SERVER', 'BOOTP/YIADDR']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('ip', ip=to_node_name)
     elif connection_type in ['DHCP/DISCOVER/HOSTNAME']:
@@ -117,7 +117,7 @@ def do_dpi(pkt):
                 register_connection('EAP/IDENTITY/RESPONSE', pkt.time, pkt.addr2, eap.identity.decode())
                 register_connection('EAP/IDENTITY/SENT_RESPONSE', pkt.time, pkt.addr2, pkt.addr1)
                 register_connection('EAP/IDENTITY/RECV_RESPONSE', pkt.time, eap.identity.decode(), pkt.addr1)
-    if pkt.haslayer(IP):
+    elif pkt.haslayer(IP):
         ip = pkt.getlayer(IP)
         port_type = 'ERROR'
         if pkt.haslayer(UDP):
@@ -151,7 +151,7 @@ def do_dpi(pkt):
                 if 'hostname' in options.keys():
                     register_connection('DHCP/DISCOVER/HOSTNAME', pkt.time, pkt.addr2, options['hostname'].decode())
             elif options['message-type'] == 2:  # OFFER
-                register_connection('BOOTP/YIADDR', pkt.time, pkt2.addr, bootp.yiaddr)
+                register_connection('BOOTP/YIADDR', pkt.time, pkt.addr1, bootp.yiaddr)
                 if 'router' in options.keys():
                     for router in options['router']:
                         register_connection('DHCP/OFFER/ROUTER', pkt.time, pkt.addr1, router)
@@ -162,7 +162,7 @@ def do_dpi(pkt):
                     for domain in options['domain']:
                         register_connection('DHCP/OFFER/DOMAIN', pkt.time, pkt.addr1, domain.decode().replace('\x00', ''))
             elif options['message-type'] == 5:  # ACK
-                register_connection('BOOTP/YIADDR', pkt.time, pkt2.addr, bootp.yiaddr)
+                register_connection('BOOTP/YIADDR', pkt.time, pkt.addr2, bootp.yiaddr)
                 if 'router' in options.keys():
                     for router in options['router']:
                         register_connection('DHCP/ACK/ROUTER', pkt.time, pkt.addr2, router)
