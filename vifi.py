@@ -56,13 +56,13 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
     from_node = None
     to_node = None
     tx = graph.begin()
-    if connection_type in ['MGMT/BEACON', 'MGMT/PROBE_REQUEST', 'MGMT/PROBE_RESPONSE/MAC_SENT_SSID']:
+    if connection_type in ['WIFI/MGMT/BEACON', 'WIFI/MGMT/PROBE_REQUEST', 'WIFI/MGMT/PROBE_RESPONSE/MAC_SENT_SSID']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('network', essid=to_node_name)
-    elif connection_type in ['MGMT/PROBE_RESPONSE/MAC_RECV_SSID']:
+    elif connection_type in ['WIFI/MGMT/PROBE_RESPONSE/MAC_RECV_SSID']:
         from_node = Node('network', essid=from_node_name)
         to_node = Node('device', mac_address=to_node_name)
-    elif connection_type in ['CTRL/ACK', 'GEN/MAC_TO_MAC', 'EAP/IDENTITY/SENT_RESPONSE', 'EAP/IDENTITY/SENT_REQUEST']:
+    elif connection_type in ['WIFI/CTRL/ACK', 'ETHER/GEN/MAC_TO_MAC', 'EAP/IDENTITY/SENT_RESPONSE', 'EAP/IDENTITY/SENT_REQUEST']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('device', mac_address=to_node_name)
     elif connection_type in ['EAP/IDENTITY/RESPONSE']:
@@ -99,19 +99,19 @@ def PacketHandler(pkt):
         if pkt.subtype == 4:
             if not pktInfoDecodeable(pkt):
                 return
-            register_connection('MGMT/PROBE_REQUEST', pkt.time, pkt.addr2, pkt.info.decode())
+            register_connection('WIFI/MGMT/PROBE_REQUEST', pkt.time, pkt.addr2, pkt.info.decode())
         elif pkt.subtype == 5:
             if not pktInfoDecodeable(pkt):
                 return
-            register_connection('MGMT/PROBE_RESPONSE/MAC_RECV_SSID', pkt.time, pkt.info.decode(), pkt.addr1)
-            register_connection('MGMT/PROBE_RESPONSE/MAC_SENT_SSID', pkt.time, pkt.addr3, pkt.info.decode())
-            register_connection('GEN/MAC_TO_MAC', pkt.time, pkt.addr3, pkt.addr1)
+            register_connection('WIFI/MGMT/PROBE_RESPONSE/MAC_RECV_SSID', pkt.time, pkt.info.decode(), pkt.addr1)
+            register_connection('WIFI/MGMT/PROBE_RESPONSE/MAC_SENT_SSID', pkt.time, pkt.addr3, pkt.info.decode())
+            register_connection('ETHER/GEN/MAC_TO_MAC', pkt.time, pkt.addr3, pkt.addr1)
         elif pkt.subtype == 8:
             if not pktInfoDecodeable(pkt):
                 return
-            register_connection('MGMT/BEACON', pkt.time, pkt.addr2, pkt.info.decode())
+            register_connection('WIFI/MGMT/BEACON', pkt.time, pkt.addr2, pkt.info.decode())
     elif pkt.type == 2:
-        # TODO: Find out who sends what to whom, add GEN/MAC_TO_MAC
+        # TODO: Find out who sends what to whom, add ETHER/GEN/MAC_TO_MAC
         if pkt.haslayer(EAP):
             eap = pkt.getlayer(EAP)
             if eap.code == 1:  # EAP code=request
