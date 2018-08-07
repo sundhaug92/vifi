@@ -6,7 +6,7 @@
 
 ### Added
 
-- Extracts EAP identity data (request and response)
+- Added support for ARP, BOOTP, DHCP, EAP, IP, TCP, UDP
 
 ### Changed
 

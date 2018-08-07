@@ -10,6 +10,7 @@ Originally developed under contract for [University of Southeast Norway](https:/
 - Python 3.6 or higher, might with earlier versions (python3)
 - Python pip for (python3-pip)
 - neo4j (Tested using neo4j:latest docker image)
+- Python packages listed in requirements.txt (pip3 install -r requirements.txt)
 
 ## Usage
 
@@ -47,4 +48,12 @@ RETURN p
 MATCH p=(:identity)--()
 RETURN p
 ```
-Note: This is likely to reveal email-addresses
+**Note**: This is likely to reveal email-addresses
+
+
+## Find all ARP data
+![Example of ARP data](img/example-arp.png)
+```neo4j
+MATCH p=()-[:`ARP/IS_AT`]-()-[:`ARP/WHO_HAS`]-()
+RETURN p
+```
