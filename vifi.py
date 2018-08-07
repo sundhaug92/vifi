@@ -1,11 +1,8 @@
 from scapy.all import *
-# from scapy.layers.tls.all import *
 from sys import argv
-import pdb
 from py2neo.database import Graph, Node, Relationship
 import re
 import os.path
-# import pdb
 
 known_packet_types = []
 pkt_desc = {
@@ -78,10 +75,10 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
     elif connection_type in ['DHCP/DISCOVER/HOSTNAME']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('hostname', hostname=to_node_name)
-    elif connection_type in ['IP/TCP/HAS_PORT', 'IP/UDP/HAS_PORT']:
+    elif connection_type in ['IP/PORT']:
         from_node = Node('ip', ip_address=from_node_name)
         to_node = Node('ip_port', port_name=to_node_name)
-    elif connection_type in ['IP/TCP/SENT_DATA', 'IP/UDP/SENT_DATA']:
+    elif connection_type in ['IP/PORT/TRAFFIC']:
         from_node = Node('ip_port', port_name=from_node_name)
         to_node = Node('ip_port', port_name=to_node_name)
     if from_node is None or to_node is None:
@@ -122,24 +119,18 @@ def do_dpi(pkt):
                 register_connection('EAP/IDENTITY/RECV_RESPONSE', pkt.time, eap.identity.decode(), pkt.addr1)
     if pkt.haslayer(IP):
         ip = pkt.getlayer(IP)
-        sport, dport = -1, -1
         port_type = 'ERROR'
         if pkt.haslayer(UDP):
-            udp = pkt.getlayer(UDP)
-            sport, dport = udp.sport, udp.dport
             port_type = 'udp'
         elif pkt.haslayer(TCP):
-            tcp = pkt.getlayer(TCP)
-            sport, dport = tcp.sport, tcp.dport
             port_type = 'tcp'
         if port_type != 'ERROR':
+            sport, dport = ip.sport, ip.dport
             src_port_name = (ip.src if ip.version == 4 else '[' + str(ip.src) + ']') + ':' + str(sport) + '/' + port_type
             dst_port_name = (ip.dst if ip.version == 4 else '[' + str(ip.dst) + ']') + ':' + str(dport) + '/' + port_type
-            if port_type == 'ERROR':
-                pdb.set_trace()
-            register_connection('IP/{}/HAS_PORT'.format(port_type).upper(), pkt.time, ip.src, src_port_name)
-            register_connection('IP/{}/HAS_PORT'.format(port_type).upper(), pkt.time, ip.dst, dst_port_name)
-            register_connection('IP/{}/SENT_DATA'.format(port_type).upper(), pkt.time, src_port_name, dst_port_name)
+            register_connection('IP/PORT', pkt.time, ip.src, src_port_name)
+            register_connection('IP/PORT', pkt.time, ip.dst, dst_port_name)
+            register_connection('IP/PORT/TRAFFIC', pkt.time, src_port_name, dst_port_name)
         if pkt.haslayer(ARP):
             arp = pkt.getlayer(ARP)
             if arp.op == arp.is_at:
@@ -154,6 +145,7 @@ def do_dpi(pkt):
                 if option in ['end', 'pad']:
                     continue
                 options[option[0]] = option[1:]
+            options['message-type']=options['message-type'][0]
             if options['message-type'] == 1:  # DISCOVER
                 # TODO: Use option 61 if available instead of pkt.addr2
                 if 'hostname' in options.keys():
