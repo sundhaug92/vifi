@@ -110,32 +110,22 @@ def PacketHandler(pkt):
             if not pktInfoDecodeable(pkt):
                 return
             register_connection('MGMT/BEACON', pkt.time, pkt.addr2, pkt.info.decode())
-#    elif pkt.type == 2: # One of these are wrong
-#        register_connection('GEN/MAC_TO_MAC', pkt.time, pkt.addr2, pkt.addr1)
-#        register_connection('GEN/MAC_TO_MAC', pkt.time, pkt.addr1, pkt.addr2)
-    if pkt.haslayer(EAP):
-        eap = pkt.getlayer(EAP)
-        if eap.code == 1:  # EAP code=request
-            if eap.type == 1:  # EAP type=identity
-                register_connection('EAP/IDENTITY/SENT_REQUEST', pkt.time, pkt.addr2, pkt.addr1)
-#            elif eap.type == 25: # EAP type=EAP-PEAP
-#                 if eap.tls_data == b'':
-#                     return
-#                 tls=TLS(eap.tls_data)
-#                 if not tls.haslayer(TLSCertificate): return
-#                 pdb.set_trace()
-#                if hasattr(eap, 'tls_data'):
-#                    ssl=SSLLayer(eap.tls_data)
-        elif eap.code == 2: # EAP code=response
-            if eap.type == 1: # EAP type=identity
-                # print(pkt.ID, pkt.addr1, pkt.addr2, pkt.addr3, pkt.type, pkt.subtype, eap.code, eap.type, eap.identity.decode())
-                register_connection('EAP/IDENTITY/RESPONSE', pkt.time, pkt.addr2, eap.identity.decode())
-                register_connection('EAP/IDENTITY/SENT_RESPONSE', pkt.time, pkt.addr2, pkt.addr1)
-                register_connection('EAP/IDENTITY/RECV_RESPONSE', pkt.time, eap.identity.decode(), pkt.addr1)
+    elif pkt.type == 2:
+        # TODO: Find out who sends what to whom, add GEN/MAC_TO_MAC
+        if pkt.haslayer(EAP):
+            eap = pkt.getlayer(EAP)
+            if eap.code == 1:  # EAP code=request
+                if eap.type == 1:  # EAP type=identity
+                    register_connection('EAP/IDENTITY/SENT_REQUEST', pkt.time, pkt.addr2, pkt.addr1)
+            elif eap.code == 2: # EAP code=response
+                if eap.type == 1: # EAP type=identity
+                    register_connection('EAP/IDENTITY/RESPONSE', pkt.time, pkt.addr2, eap.identity.decode())
+                    register_connection('EAP/IDENTITY/SENT_RESPONSE', pkt.time, pkt.addr2, pkt.addr1)
+                    register_connection('EAP/IDENTITY/RECV_RESPONSE', pkt.time, eap.identity.decode(), pkt.addr1)
 
 
 print('Connecting to graph')
-graph = Graph(password='password')
+graph = Graph(password='password') # TODO: parameterize, don't hardcode password
 
 
 interfaces = []
@@ -156,6 +146,7 @@ for filename in argv[1:]:
 if interfaces == [] and argv[1:] == []:
     interfaces = None
     print('Will sniff on all interfaces, might break')
-else:
+    sniff(iface=interfaces, **sniff_args)
+elif interfaces != []:
     print('Will sniff on', ', '.join(interfaces))
-sniff(iface=interfaces, **sniff_args)
+    sniff(iface=interfaces, **sniff_args)
