@@ -1,7 +1,1 @@
-*.gexf
-*.pyc
-*.jpg
-*.png
-*.ico
-*.cap
 __pycache__
