@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from scapy.all import *
 from sys import argv
 from py2neo.database import Graph, Node, Relationship
