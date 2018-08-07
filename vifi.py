@@ -3,6 +3,7 @@ from sys import argv
 from py2neo.database import Graph, Node, Relationship
 import re
 import os.path
+import logging
 
 known_packet_types = []
 pkt_desc = {
@@ -50,7 +51,6 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
             return
     if (connection_type, from_node_name, to_node_name) in known_connections:
         return
-#    print(at_time, connection_type, from_node_name, to_node_name)
     from_node = None
     to_node = None
     tx = graph.begin()
@@ -69,10 +69,10 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
     elif connection_type in ['EAP/IDENTITY/RECV_RESPONSE']:
         from_node = Node('identity', identity=from_node_name)
         to_node = Node('device', mac_address=to_node_name)
-    elif connection_type in ['ARP/IS_AT', 'ARP/WHO_HAS', 'DHCP/ACK/ROUTER', 'DHCP/ACK/NAME_SERVER', 'BOOTP/YIADDR']:
+    elif connection_type in ['ARP/IS_AT', 'ARP/WHO_HAS', 'DHCP/ACK/ROUTER', 'DHCP/ACK/NAME_SERVER', 'DHCP/OFFER/ROUTER', 'DHCP/OFFER/NAME_SERVER', 'BOOTP/YIADDR']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('ip', ip=to_node_name)
-    elif connection_type in ['DHCP/DISCOVER/HOSTNAME']:
+    elif connection_type in ['DHCP/DISCOVER/HOSTNAME', 'DHCP/ACK/DOMAIN', 'DHCP/OFFER/DOMAIN']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('hostname', hostname=to_node_name)
     elif connection_type in ['IP/PORT']:
@@ -82,7 +82,7 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
         from_node = Node('ip_port', port_name=from_node_name)
         to_node = Node('ip_port', port_name=to_node_name)
     if from_node is None or to_node is None:
-        print('DEBUG: connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
+        logger.debug('connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
         raise Exception('Unknown connection type {}'.format(connection_type))
     rel = Relationship(from_node, connection_type, to_node)
     for n in [to_node, from_node, rel]:
@@ -112,11 +112,17 @@ def do_dpi(pkt):
         if eap.code == 1:  # EAP code=request
             if eap.type == 1:  # EAP type=identity
                 register_connection('EAP/IDENTITY/SENT_REQUEST', pkt.time, pkt.addr2, pkt.addr1)
-        elif eap.code == 2: # EAP code=response
-            if eap.type == 1: # EAP type=identity
+            else:
+                logger.debug('Unknown EAP type', eap.code, eap.type)
+        elif eap.code == 2:  # EAP code=response
+            if eap.type == 1:  # EAP type=identity
                 register_connection('EAP/IDENTITY/RESPONSE', pkt.time, pkt.addr2, eap.identity.decode())
                 register_connection('EAP/IDENTITY/SENT_RESPONSE', pkt.time, pkt.addr2, pkt.addr1)
                 register_connection('EAP/IDENTITY/RECV_RESPONSE', pkt.time, eap.identity.decode(), pkt.addr1)
+            else:
+                logger.debug('Unknown EAP type', eap.code, eap.type)
+        else:
+            logger.debug('DEBUG: Unknown EAP code', eap.code)
     elif pkt.haslayer(IP):
         ip = pkt.getlayer(IP)
         port_type = 'ERROR'
@@ -149,7 +155,7 @@ def do_dpi(pkt):
             if options['message-type'] == 1:  # DISCOVER
                 # TODO: Use option 61 if available instead of pkt.addr2
                 if 'hostname' in options.keys():
-                    register_connection('DHCP/DISCOVER/HOSTNAME', pkt.time, pkt.addr2, options['hostname'].decode())
+                    register_connection('DHCP/DISCOVER/HOSTNAME', pkt.time, pkt.addr2, options['hostname'][0].decode())
             elif options['message-type'] == 2:  # OFFER
                 register_connection('BOOTP/YIADDR', pkt.time, pkt.addr1, bootp.yiaddr)
                 if 'router' in options.keys():
@@ -173,9 +179,7 @@ def do_dpi(pkt):
                     for domain in options['domain']:
                         register_connection('DHCP/ACK/DOMAIN', pkt.time, pkt.addr2, domain.decode().replace('\x00', ''))
             else:
-                print('DHCP unknown message-type', options['message-type'])
-                print(pkt.summary())
-                pkt.show()
+                logger.debug('DHCP unknown message-type', options['message-type'])
 
 
 def PacketHandler(pkt):
@@ -201,7 +205,7 @@ def PacketHandler(pkt):
     else:
         do_dpi(pkt)
 
-
+logger = logging.getLogger()
 print('Connecting to graph')
 graph = Graph(password='password')  # TODO: parameterize, don't hardcode password
 
