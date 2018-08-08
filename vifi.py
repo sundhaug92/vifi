@@ -40,17 +40,48 @@ pkt_desc = {
 }
 
 graph = None
-known_connections = []
+known_relationships = {}
 
+def handle_known_relationships_count(max_count):
+    if len(known_relationships) > max_count:
+        logger.debug('Flushing', len(known_relationships) - max_count, 'relationships')
+    while len(known_relationships) > max_count:
+        k = list(known_relationships.keys())[0]
+        v = known_relationships[k]
+        rel = v['rel']
+        if rel['first_seen'] is None or rel['first_seen'] > v['first_seen']:
+            rel['first_seen'] = v['first_seen']
+        if rel['last_seen'] is None or rel['last_seen'] < v['last_seen']:
+            rel['last_seen'] = v['last_seen']
+        if rel['times'] is None:
+            rel['times'] = 0
+        rel['times'] += v['times']
+        rel.push()
+        for n in rel.nodes():
+            if n['first_seen'] is None or n['first_seen'] > v['first_seen']:
+                n['first_seen'] = v['first_seen']
+            if n['last_seen'] is None or n['last_seen'] < v['last_seen']:
+                n['last_seen'] = v['last_seen']
+            if n['times'] is None:
+                n['times'] = 0
+            n['times'] += v['times']
+            n.push()
+        del known_relationships[k]
 
 def register_connection(connection_type, at_time, from_node_name, to_node_name):
-    global known_connections
+    global known_relationships
     for _ in ['', '\0', '00:00:00:00:00:00', 'ff:ff:ff:ff:ff:ff']:
         if _ in [from_node_name, to_node_name]: return
     for name in [from_node_name, to_node_name]:
         if re.search(r'([0-9a-f]{2}[:]){5}([0-9a-f]{2})', name) and (name.lower()[1] in ['2', '6', 'a', 'e'] or name.startswith('33:33:')):
             return
-    if (connection_type, from_node_name, to_node_name) in known_connections:
+    if (connection_type, from_node_name, to_node_name) in known_relationships.keys():
+        v = known_relationships[(connection_type, from_node_name, to_node_name)]
+        if v['first_seen'] > at_time:
+            v['first_seen'] = at_time
+        if v['last_seen'] < at_time:
+            v['last_seen'] = at_time
+        v['times'] += 1
         return
     from_node = None
     to_node = None
@@ -82,21 +113,23 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
     elif connection_type in ['IP/PORT/TRAFFIC']:
         from_node = Node('ip_port', port_name=from_node_name)
         to_node = Node('ip_port', port_name=to_node_name)
+    elif connection_type in ['IP/TRAFFIC']:
+        from_node = Node('ip', ip_address=from_node_name)
+        to_node = Node('ip', ip_address=to_node_name)
     if from_node is None or to_node is None:
         logger.debug('connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
         raise Exception('Unknown connection type {}'.format(connection_type))
     rel = Relationship(from_node, connection_type, to_node)
     for n in [to_node, from_node, rel]:
-        if type(n) is Relationship:
-            tx.merge(n)
-            continue
-        if n.has_label('device'):
-            tx.merge(n, primary_key='mac_address')
-        elif n.has_label('network'):
-            tx.merge(n, primary_key='essid')
+        tx.merge(n)
+    known_relationships[(connection_type, from_node_name, to_node_name)] = {
+        'times': 1,
+        'first_seen': at_time,
+        'last_seen': at_time,
+        'rel': rel
+    }
+    handle_known_relationships_count(max_count=10000)
     tx.commit()
-    known_connections.append((connection_type, from_node_name, to_node_name))
-    known_connections = known_connections[-10000:]
 
 
 def pktInfoDecodeable(pkt):
@@ -224,6 +257,7 @@ for filename in argv[1:]:
     else:
         print('Will sniff from interface',filename)
         interfaces.append(filename)
+handle_known_relationships_count(0)
 
 if interfaces == [] and argv[1:] == []:
     interfaces = None
