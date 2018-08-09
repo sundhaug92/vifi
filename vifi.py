@@ -43,14 +43,14 @@ pkt_desc = {
 graph = None
 known_relationships = {}
 
-def handle_known_relationships_count(max_count):
+def handle_known_relationships_count(tx, max_count):
     if len(known_relationships) > max_count:
         logger.debug('Flushing', len(known_relationships) - max_count, 'relationships')
     while len(known_relationships) > max_count:
         k = list(known_relationships.keys())[0]
         v = known_relationships[k]
         (id1, rel_type, id2) = v['rel']
-        rel = graph.match_one(graph.node(id1), rel_type, graph.node(id2))
+        rel = tx.match_one(graph.node(id1), rel_type, graph.node(id2))
         if rel['first_seen'] is None or rel['first_seen'] > v['first_seen']:
             rel['first_seen'] = v['first_seen']
         if rel['last_seen'] is None or rel['last_seen'] < v['last_seen']:
@@ -67,8 +67,9 @@ def handle_known_relationships_count(max_count):
             if n['times'] is None:
                 n['times'] = 0
             n['times'] += v['times']
-            n.push()
+            tx.push(n)
         del known_relationships[k]
+
 
 def register_connection(connection_type, at_time, from_node_name, to_node_name):
     global known_relationships
@@ -132,7 +133,7 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
         'last_seen': at_time,
         'rel': (remote(from_node)._id, connection_type, remote(to_node)._id)
     }
-    handle_known_relationships_count(max_count=10000)
+    handle_known_relationships_count(tx, max_count=10000)
 
 
 def pktInfoDecodeable(pkt):
@@ -259,9 +260,9 @@ for filename in argv[1:]:
         print('Loading from file', filename)
         sniff(offline=filename, **sniff_args)
     else:
-        print('Will sniff from interface',filename)
+        print('Will sniff from interface', filename)
         interfaces.append(filename)
-handle_known_relationships_count(0)
+handle_known_relationships_count(0, graph.begin())
 
 if interfaces == [] and argv[1:] == []:
     interfaces = None
