@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from scapy.all import *
 from sys import argv
+from py2neo import remote
 from py2neo.database import Graph, Node, Relationship
 import re
 import os.path
@@ -48,7 +49,8 @@ def handle_known_relationships_count(max_count):
     while len(known_relationships) > max_count:
         k = list(known_relationships.keys())[0]
         v = known_relationships[k]
-        rel = v['rel']
+        (id1, rel_type, id2) = v['rel']
+        rel = graph.match_one(graph.node(id1), rel_type, graph.node(id2))
         if rel['first_seen'] is None or rel['first_seen'] > v['first_seen']:
             rel['first_seen'] = v['first_seen']
         if rel['last_seen'] is None or rel['last_seen'] < v['last_seen']:
@@ -122,14 +124,15 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name):
     rel = Relationship(from_node, connection_type, to_node)
     for n in [to_node, from_node, rel]:
         tx.merge(n)
+    tx.commit()
+    logger.debug(to_node, from_node, rel)
     known_relationships[(connection_type, from_node_name, to_node_name)] = {
         'times': 1,
         'first_seen': at_time,
         'last_seen': at_time,
-        'rel': rel
+        'rel': (remote(from_node)._id, connection_type, remote(to_node)._id)
     }
     handle_known_relationships_count(max_count=10000)
-    tx.commit()
 
 
 def pktInfoDecodeable(pkt):
@@ -238,6 +241,7 @@ def PacketHandler(pkt):
             do_dpi(pkt)
     else:
         do_dpi(pkt)
+
 
 logger = logging.getLogger()
 print('Connecting to graph')
