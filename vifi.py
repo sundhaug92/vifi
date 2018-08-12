@@ -16,7 +16,7 @@ from scapy.all import *
 graph = None
 
 
-def register_connection(connection_type, at_time, from_node_name, to_node_name, **kwargs):
+def get_connection(connection_type, from_node_name, to_node_name):
     for _ in ['', '\0', '00:00:00:00:00:00', 'ff:ff:ff:ff:ff:ff']:
         if _ in [from_node_name, to_node_name]:
             return
@@ -59,21 +59,12 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name, 
         logger.debug('connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
         raise Exception('Unknown connection type {}'.format(connection_type))
     rel = Relationship(from_node, connection_type, to_node)
-    if not kwargs['fast']:
-        graph.merge(rel)
-    # print(dict(rel))
-    # if 'first_seen' in kwargs.keys():
-    #     if rel['first_seen'] is None or kwargs['first_seen'] < rel['first_seen']:
-    #         rel['first_seen'] = kwargs['first_seen']
-    # if 'last_seen' in kwargs.keys():
-    #     if rel['last_seen'] is None or kwargs['last_seen'] > rel['last_seen']:
-    #         rel['last_seen'] = kwargs['last_seen']
-    # if 'times' in kwargs.keys():
-    #     if rel['times'] is None:
-    #         rel['times'] = 0
-    #     rel['times'] += kwargs['times']
-    # graph.push(rel)
+    return rel
 
+def register_connection(connection):
+    if connection is None:
+        raise Exception()
+    graph.merge(connection)
 
 def pktInfoDecodeable(pkt):
     try:
@@ -89,14 +80,14 @@ def do_dpi(pkt):
         eap = pkt.getlayer(EAP)
         if eap.code == 1:  # EAP code=request
             if eap.type == 1:  # EAP type=identity
-                connections.append(('EAP/IDENTITY/SENT_REQUEST', pkt.time, pkt.addr2, pkt.addr1))
+                connections.append(('EAP/IDENTITY/SENT_REQUEST', pkt.addr2, pkt.addr1))
             else:
                 logger.debug('Unknown EAP type', eap.code, eap.type)
         elif eap.code == 2:  # EAP code=response
             if eap.type == 1:  # EAP type=identity
-                connections.append(('EAP/IDENTITY/RESPONSE', pkt.time, pkt.addr2, eap.identity.decode()))
-                connections.append(('EAP/IDENTITY/SENT_RESPONSE', pkt.time, pkt.addr2, pkt.addr1))
-                connections.append(('EAP/IDENTITY/RECV_RESPONSE', pkt.time, eap.identity.decode(), pkt.addr1))
+                connections.append(('EAP/IDENTITY/RESPONSE', pkt.addr2, eap.identity.decode()))
+                connections.append(('EAP/IDENTITY/SENT_RESPONSE', pkt.addr2, pkt.addr1))
+                connections.append(('EAP/IDENTITY/RECV_RESPONSE', eap.identity.decode(), pkt.addr1))
             else:
                 logger.debug('Unknown EAP type', eap.code, eap.type)
         else:
@@ -112,15 +103,15 @@ def do_dpi(pkt):
             sport, dport = ip.sport, ip.dport
             src_port_name = (ip.src if ip.version == 4 else '[' + str(ip.src) + ']') + ':' + str(sport) + '/' + port_type
             dst_port_name = (ip.dst if ip.version == 4 else '[' + str(ip.dst) + ']') + ':' + str(dport) + '/' + port_type
-            connections.append(('IP/PORT', pkt.time, ip.src, src_port_name))
-            connections.append(('IP/PORT', pkt.time, ip.dst, dst_port_name))
-            connections.append(('IP/PORT/TRAFFIC', pkt.time, src_port_name, dst_port_name))
+            connections.append(('IP/PORT', ip.src, src_port_name))
+            connections.append(('IP/PORT', ip.dst, dst_port_name))
+            connections.append(('IP/PORT/TRAFFIC', src_port_name, dst_port_name))
         if pkt.haslayer(ARP):
             arp = pkt.getlayer(ARP)
             if arp.op == arp.is_at:
-                connections.append(('ARP/IS_AT', pkt.time, arp.hwsrc, arp.psrc))
+                connections.append(('ARP/IS_AT', arp.hwsrc, arp.psrc))
             elif arp.op == arp.who_has:
-                connections.append(('ARP/WHO_HAS', pkt.time, arp.hwsrc, arp.pdst))
+                connections.append(('ARP/WHO_HAS', arp.hwsrc, arp.pdst))
         elif pkt.haslayer(DHCP):
             bootp = pkt.getlayer(BOOTP)
             dhcp = pkt.getlayer(DHCP)
@@ -133,29 +124,29 @@ def do_dpi(pkt):
             if options['message-type'] == 1:  # DISCOVER
                 # TODO: Use option 61 if available instead of pkt.addr2
                 if 'hostname' in options.keys():
-                    connections.append(('DHCP/DISCOVER/HOSTNAME', pkt.time, pkt.addr2, options['hostname'][0].decode()))
+                    connections.append(('DHCP/DISCOVER/HOSTNAME', pkt.addr2, options['hostname'][0].decode()))
             elif options['message-type'] == 2:  # OFFER
-                connections.append(('BOOTP/YIADDR', pkt.time, pkt.addr1, bootp.yiaddr))
+                connections.append(('BOOTP/YIADDR', pkt.addr1, bootp.yiaddr))
                 if 'router' in options.keys():
                     for router in options['router']:
-                        connections.append(('DHCP/OFFER/ROUTER', pkt.time, pkt.addr1, router))
+                        connections.append(('DHCP/OFFER/ROUTER', pkt.addr1, router))
                 if 'name_server' in options.keys():
                     for name_server in options['name_server']:
-                        connections.append(('DHCP/OFFER/NAME_SERVER', pkt.time, pkt.addr1, name_server))
+                        connections.append(('DHCP/OFFER/NAME_SERVER', pkt.addr1, name_server))
                 if 'domain' in options.keys():
                     for domain in options['domain']:
-                        connections.append(('DHCP/OFFER/DOMAIN', pkt.time, pkt.addr1, domain.decode().replace('\x00', '')))
+                        connections.append(('DHCP/OFFER/DOMAIN', pkt.addr1, domain.decode().replace('\x00', '')))
             elif options['message-type'] == 5:  # ACK
-                connections.append(('BOOTP/YIADDR', pkt.time, pkt.addr2, bootp.yiaddr))
+                connections.append(('BOOTP/YIADDR', pkt.addr2, bootp.yiaddr))
                 if 'router' in options.keys():
                     for router in options['router']:
-                        connections.append(('DHCP/ACK/ROUTER', pkt.time, pkt.addr2, router))
+                        connections.append(('DHCP/ACK/ROUTER', pkt.addr2, router))
                 if 'name_server' in options.keys():
                     for name_server in options['name_server']:
-                        connections.append(('DHCP/ACK/NAME_SERVER', pkt.time, pkt.addr2, name_server))
+                        connections.append(('DHCP/ACK/NAME_SERVER', pkt.addr2, name_server))
                 if 'domain' in options.keys():
                     for domain in options['domain']:
-                        connections.append(('DHCP/ACK/DOMAIN', pkt.time, pkt.addr2, domain.decode().replace('\x00', '')))
+                        connections.append(('DHCP/ACK/DOMAIN', pkt.addr2, domain.decode().replace('\x00', '')))
             else:
                 logger.debug('DHCP unknown message-type', options['message-type'])
     return connections
@@ -168,17 +159,17 @@ def PacketHandler(pkt):
             if pkt.subtype == 4:
                 if not pktInfoDecodeable(pkt):
                     return
-                connections.append(('WIFI/MGMT/PROBE_REQUEST', pkt.time, pkt.addr2, pkt.info.decode()))
+                connections.append(('WIFI/MGMT/PROBE_REQUEST', pkt.addr2, pkt.info.decode()))
             elif pkt.subtype == 5:
                 if not pktInfoDecodeable(pkt):
                     return
-                connections.append(('WIFI/MGMT/PROBE_RESPONSE/MAC_RECV_SSID', pkt.time, pkt.info.decode(), pkt.addr1))
-                connections.append(('WIFI/MGMT/PROBE_RESPONSE/MAC_SENT_SSID', pkt.time, pkt.addr3, pkt.info.decode()))
-                connections.append(('ETHER/GEN/MAC_TO_MAC', pkt.time, pkt.addr3, pkt.addr1))
+                connections.append(('WIFI/MGMT/PROBE_RESPONSE/MAC_RECV_SSID', pkt.info.decode(), pkt.addr1))
+                connections.append(('WIFI/MGMT/PROBE_RESPONSE/MAC_SENT_SSID', pkt.addr3, pkt.info.decode()))
+                connections.append(('ETHER/GEN/MAC_TO_MAC', pkt.addr3, pkt.addr1))
             elif pkt.subtype == 8:
                 if not pktInfoDecodeable(pkt):
                     return
-                connections.append(('WIFI/MGMT/BEACON', pkt.time, pkt.addr2, pkt.info.decode()))
+                connections.append(('WIFI/MGMT/BEACON', pkt.addr2, pkt.info.decode()))
         elif pkt.type == 2:
             # TODO: Find out who sends what to whom, add ETHER/GEN/MAC_TO_MAC
             connections += do_dpi(pkt)
@@ -186,45 +177,47 @@ def PacketHandler(pkt):
         connections += do_dpi(pkt)
     return connections
 
-
 def sniffer(sniffer_queue, db_queue):
-    nice(1) # Be a little nicer than the DB-thread
+    nice(1)  # Be a little nicer than the DB-thread
+    prev_rels = []
     rel_meta = {}
-    def cleanup_rels():
-        nonlocal rel_meta
-        db_queue.put(('rel', rel_meta))
+    def purge_rel_meta():
+        nonlocal prev_rels, rel_meta
+        for rel in prev_rels:
+            db_queue.put(('update_rel', (rel, rel_meta[rel])))
         rel_meta = {}
-    def simplified(r):
-        return (r[0], r[2], r[3])
+        prev_rels = []
     while True:
         job = sniffer_queue.get()
         if job is None:
-            print('Sniffer done', os.getpid())
             break
         frame_count = 0
 
         def _sniffer(rels, pkt):
-            nonlocal frame_count, rel_meta
+            nonlocal frame_count, prev_rels, rel_meta
             frame_count += 1
             if rels is not None:
                 for rel in rels:
                     if rel is None:
                         continue
-                    rel = simplified(rel)
-                    if rel in rel_meta.keys():
-                        rel_meta[rel]['times'] += 1
-                        if rel_meta[rel]['first_seen'] > pkt.time:
-                            rel_meta[rel]['first_seen'] = pkt.time
-                        if rel_meta[rel]['last_seen'] < pkt.time:
-                            rel_meta[rel]['last_seen'] = pkt.time
-                    else:
+                    if rel not in prev_rels:
+                        db_queue.put(('new_rel', rel))
+                        prev_rels.append(rel)
                         rel_meta[rel] = {
                             'times': 1,
                             'first_seen': pkt.time,
                             'last_seen': pkt.time
-                        }
-            if len(rel_meta.keys()) > (10000 * cpu_count()):
-                cleanup_rels()
+                            }
+                    else:
+                        rel_meta[rel]['times'] += 1
+                        if pkt.time < rel_meta[rel]['first_seen']:
+                            rel_meta[rel]['first_seen'] = pkt.time
+                        elif pkt.time > rel_meta[rel]['last_seen']:
+                            rel_meta[rel]['last_seen'] = pkt.time
+            if (frame_count % 100000) == 0:
+                purge_rel_meta()
+
+
         start_time = time.time()
         if job == '*':
             sniff(store=0, prn=lambda p: _sniffer(PacketHandler(p), p))
@@ -234,12 +227,12 @@ def sniffer(sniffer_queue, db_queue):
             sniff(iface=job, store=0, prn=lambda p: _sniffer(PacketHandler(p), p))
         end_time = time.time()
         sniffer_queue.task_done()
-    cleanup_rels()
+    purge_rel_meta()
     db_queue.put(None)
 
 
 def db_worker(top_count, db_queue):
-    past_slows = []
+    existing_rels = []
     while True:
         try:
             job = db_queue.get()
@@ -249,21 +242,16 @@ def db_worker(top_count, db_queue):
                     break
             else:
                 job_type, job_value = job
-                sub_count = 0
-                start_time = time.time()
-                if job_type == 'rel':
-                    for connection in job_value.keys():
-                        if connection is None:
-                            continue
-                        sub_count += 1
-                        if connection in past_slows:
-                            register_connection(*connection, **job_value[connection], fast=True)
-                        else:
-                            register_connection(*connection, **job_value[connection], fast=False)
-                            past_slows.append(connection)
+                if job_type == 'new_rel':
+                    if job_value in existing_rels:
+                        continue
+                    existing_rels.append(job_value)
+                    existing_rels = existing_rels[-100000:]
+                    register_connection(get_connection(*job_value))
+                elif job_type == 'update_rel':
+                    pass
                 else:
                     raise Exception('Unknown job_type', job_type)
-                end_time = time.time()
             db_queue.task_done()
         except:
             pass
@@ -300,10 +288,8 @@ def main():
     interfaces = []
     sniffer_queue.close()
     db_proc.join()
-    print('db_proc returned', db_proc.exitcode)
     for _ in sniffers:
         _.join()
-        print('Sniffer returned', _.exitcode)
 
 if __name__=='__main__':
     main()
