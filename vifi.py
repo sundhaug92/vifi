@@ -56,9 +56,12 @@ def get_connection(connection_type, from_node_name, to_node_name):
     elif connection_type in ['IP/TRAFFIC']:
         from_node = Node('ip', ip_address=from_node_name)
         to_node = Node('ip', ip_address=to_node_name)
-    elif connection_type in ['HTTP/REQUEST/HOST_HEADER', 'HTTP/RESPONSE/HOST_HEADER']:
+    elif connection_type in ['HTTP/REQUEST/HOST', 'HTTP/RESPONSE/HOST']:
         from_node = Node('ip', ip_address=from_node_name)
         to_node = Node('hostname', hostname=to_node_name)
+    elif connection_type in ['HTTP/REQUEST/USER_AGENT']:
+        from_node = Node('ip', ip_address=from_node_name)
+        to_node = Node('useragent', ua_string=to_node_name)
     if from_node is None or to_node is None:
         logger.debug('connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
         raise Exception('Unknown connection type {}'.format(connection_type))
@@ -151,11 +154,13 @@ def do_dpi(pkt):
                 if pkt.haslayer(HTTPResponse):
                     http_response = http.getlayer(HTTPResponse)
                     if 'Host' in http_response.fields:
-                        register_connection(('HTTP/RESPONSE/HOST_HEADER', ip.src, http_response.fields['Host'].decode()))
+                        connections.append(('HTTP/RESPONSE/HOST', ip.src, http_response.fields['Host'].decode()))
                 elif pkt.haslayer(HTTPRequest):
                     http_request = http.getlayer(HTTPRequest)
                     if 'Host' in http_request.fields:
-                        register_connection(('HTTP/REQUEST/HOST_HEADER', ip.dst, http_request.fields['Host'].decode()))
+                        connections.append(('HTTP/REQUEST/HOST', ip.dst, http_request.fields['Host'].decode()))
+                    if 'User-Agent' in http_request.fields:
+                        connections.append(('HTTP/REQUEST/USER_AGENT', ip.dst, http_request.fields['User-Agent'].decode()))
     elif pkt.haslayer(ARP):
         arp = pkt.getlayer(ARP)
         if arp.op == arp.is_at:
