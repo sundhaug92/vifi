@@ -59,7 +59,8 @@ def register_connection(connection_type, at_time, from_node_name, to_node_name, 
         logger.debug('connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
         raise Exception('Unknown connection type {}'.format(connection_type))
     rel = Relationship(from_node, connection_type, to_node)
-    graph.merge(rel)
+    if not kwargs['fast']:
+        graph.merge(rel)
     # print(dict(rel))
     # if 'first_seen' in kwargs.keys():
     #     if rel['first_seen'] is None or kwargs['first_seen'] < rel['first_seen']:
@@ -193,6 +194,8 @@ def sniffer(sniffer_queue, db_queue):
         nonlocal rel_meta
         db_queue.put(('rel', rel_meta))
         rel_meta = {}
+    def simplified(r):
+        return (r[0], r[2], r[3])
     while True:
         job = sniffer_queue.get()
         if job is None:
@@ -207,6 +210,7 @@ def sniffer(sniffer_queue, db_queue):
                 for rel in rels:
                     if rel is None:
                         continue
+                    rel = simplified(rel)
                     if rel in rel_meta.keys():
                         rel_meta[rel]['times'] += 1
                         if rel_meta[rel]['first_seen'] > pkt.time:
@@ -235,6 +239,7 @@ def sniffer(sniffer_queue, db_queue):
 
 
 def db_worker(top_count, db_queue):
+    past_slows = []
     while True:
         try:
             job = db_queue.get()
@@ -251,11 +256,14 @@ def db_worker(top_count, db_queue):
                         if connection is None:
                             continue
                         sub_count += 1
-                        register_connection(*connection, **job_value[connection])
+                        if connection in past_slows:
+                            register_connection(*connection, **job_value[connection], fast=True)
+                        else:
+                            register_connection(*connection, **job_value[connection], fast=False)
+                            past_slows.append(connection)
                 else:
                     raise Exception('Unknown job_type', job_type)
                 end_time = time.time()
-                print(os.getpid(), 'Loaded', sub_count, 'sub-elements in', end_time - start_time)
             db_queue.task_done()
         except:
             pass
