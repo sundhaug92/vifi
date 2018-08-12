@@ -12,6 +12,7 @@ from py2neo import remote
 from py2neo.database import Graph, Node, Relationship
 
 from scapy.all import *
+from scapy_http.http import *
 
 graph = None
 
@@ -55,6 +56,9 @@ def get_connection(connection_type, from_node_name, to_node_name):
     elif connection_type in ['IP/TRAFFIC']:
         from_node = Node('ip', ip_address=from_node_name)
         to_node = Node('ip', ip_address=to_node_name)
+    elif connection_type in ['HTTP/REQUEST/HOST_HEADER', 'HTTP/RESPONSE/HOST_HEADER']:
+        from_node = Node('ip', ip_address=from_node_name)
+        to_node = Node('hostname', hostname=to_node_name)
     if from_node is None or to_node is None:
         logger.debug('connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
         raise Exception('Unknown connection type {}'.format(connection_type))
@@ -142,6 +146,16 @@ def do_dpi(pkt):
             connections.append(('IP/PORT', ip.src, src_port_name))
             connections.append(('IP/PORT', ip.dst, dst_port_name))
             connections.append(('IP/PORT/TRAFFIC', src_port_name, dst_port_name))
+            if pkt.haslayer(HTTP):
+                http = pkt.getlayer(HTTP)
+                if pkt.haslayer(HTTPResponse):
+                    http_response = http.getlayer(HTTPResponse)
+                    if 'Host' in http_response.fields:
+                        register_connection(('HTTP/RESPONSE/HOST_HEADER', ip.src, http_response.fields['Host'].decode()))
+                elif pkt.haslayer(HTTPRequest):
+                    http_request = http.getlayer(HTTPRequest)
+                    if 'Host' in http_request.fields:
+                        register_connection(('HTTP/REQUEST/HOST_HEADER', ip.dst, http_request.fields['Host'].decode()))
     elif pkt.haslayer(ARP):
         arp = pkt.getlayer(ARP)
         if arp.op == arp.is_at:
