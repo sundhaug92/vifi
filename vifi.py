@@ -97,52 +97,51 @@ def do_dpi(pkt):
         port_type = 'ERROR'
         if pkt.haslayer(UDP):
             port_type = 'udp'
+            if pkt.haslayer(DHCP):
+                bootp = pkt.getlayer(BOOTP)
+                dhcp = pkt.getlayer(DHCP)
+                options = {}
+                for option in dhcp.options:
+                    if option in ['end', 'pad']:
+                        continue
+                    options[option[0]] = option[1:]
+                options['message-type'] = options['message-type'][0]
+                if options['message-type'] == 1:  # DISCOVER
+                    # TODO: Use option 61 if available instead of pkt.addr2
+                    if 'hostname' in options.keys():
+                        connections.append(('DHCP/DISCOVER/HOSTNAME', pkt.addr2, options['hostname'][0].decode()))
+                elif options['message-type'] == 2:  # OFFER
+                    connections.append(('BOOTP/YIADDR', pkt.addr1, bootp.yiaddr))
+                    if 'router' in options.keys():
+                        for router in options['router']:
+                            connections.append(('DHCP/OFFER/ROUTER', pkt.addr1, router))
+                    if 'name_server' in options.keys():
+                        for name_server in options['name_server']:
+                            connections.append(('DHCP/OFFER/NAME_SERVER', pkt.addr1, name_server))
+                    if 'domain' in options.keys():
+                        for domain in options['domain']:
+                            connections.append(('DHCP/OFFER/DOMAIN', pkt.addr1, domain.decode().replace('\x00', '')))
+                elif options['message-type'] == 5:  # ACK
+                    connections.append(('BOOTP/YIADDR', pkt.addr2, bootp.yiaddr))
+                    if 'router' in options.keys():
+                        for router in options['router']:
+                            connections.append(('DHCP/ACK/ROUTER', pkt.addr2, router))
+                    if 'name_server' in options.keys():
+                        for name_server in options['name_server']:
+                            connections.append(('DHCP/ACK/NAME_SERVER', pkt.addr2, name_server))
+                    if 'domain' in options.keys():
+                        for domain in options['domain']:
+                            connections.append(('DHCP/ACK/DOMAIN', pkt.addr2, domain.decode().replace('\x00', '')))
+                else:
+                    logger.debug('DHCP unknown message-type', options['message-type'])
         elif pkt.haslayer(TCP):
             port_type = 'tcp'
         if port_type != 'ERROR':
-            sport, dport = ip.sport, ip.dport
-            src_port_name = (ip.src if ip.version == 4 else '[' + str(ip.src) + ']') + ':' + str(sport) + '/' + port_type
-            dst_port_name = (ip.dst if ip.version == 4 else '[' + str(ip.dst) + ']') + ':' + str(dport) + '/' + port_type
+            src_port_name = (ip.src if ip.version == 4 else '[' + str(ip.src) + ']') + ':' + str(ip.sport) + '/' + port_type
+            dst_port_name = (ip.dst if ip.version == 4 else '[' + str(ip.dst) + ']') + ':' + str(ip.dport) + '/' + port_type
             connections.append(('IP/PORT', ip.src, src_port_name))
             connections.append(('IP/PORT', ip.dst, dst_port_name))
             connections.append(('IP/PORT/TRAFFIC', src_port_name, dst_port_name))
-        if pkt.haslayer(DHCP):
-            bootp = pkt.getlayer(BOOTP)
-            dhcp = pkt.getlayer(DHCP)
-            options = {}
-            for option in dhcp.options:
-                if option in ['end', 'pad']:
-                    continue
-                options[option[0]] = option[1:]
-            options['message-type'] = options['message-type'][0]
-            if options['message-type'] == 1:  # DISCOVER
-                # TODO: Use option 61 if available instead of pkt.addr2
-                if 'hostname' in options.keys():
-                    connections.append(('DHCP/DISCOVER/HOSTNAME', pkt.addr2, options['hostname'][0].decode()))
-            elif options['message-type'] == 2:  # OFFER
-                connections.append(('BOOTP/YIADDR', pkt.addr1, bootp.yiaddr))
-                if 'router' in options.keys():
-                    for router in options['router']:
-                        connections.append(('DHCP/OFFER/ROUTER', pkt.addr1, router))
-                if 'name_server' in options.keys():
-                    for name_server in options['name_server']:
-                        connections.append(('DHCP/OFFER/NAME_SERVER', pkt.addr1, name_server))
-                if 'domain' in options.keys():
-                    for domain in options['domain']:
-                        connections.append(('DHCP/OFFER/DOMAIN', pkt.addr1, domain.decode().replace('\x00', '')))
-            elif options['message-type'] == 5:  # ACK
-                connections.append(('BOOTP/YIADDR', pkt.addr2, bootp.yiaddr))
-                if 'router' in options.keys():
-                    for router in options['router']:
-                        connections.append(('DHCP/ACK/ROUTER', pkt.addr2, router))
-                if 'name_server' in options.keys():
-                    for name_server in options['name_server']:
-                        connections.append(('DHCP/ACK/NAME_SERVER', pkt.addr2, name_server))
-                if 'domain' in options.keys():
-                    for domain in options['domain']:
-                        connections.append(('DHCP/ACK/DOMAIN', pkt.addr2, domain.decode().replace('\x00', '')))
-            else:
-                logger.debug('DHCP unknown message-type', options['message-type'])
     elif pkt.haslayer(ARP):
         arp = pkt.getlayer(ARP)
         if arp.op == arp.is_at:
