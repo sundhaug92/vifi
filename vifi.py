@@ -106,13 +106,7 @@ def do_dpi(pkt):
             connections.append(('IP/PORT', ip.src, src_port_name))
             connections.append(('IP/PORT', ip.dst, dst_port_name))
             connections.append(('IP/PORT/TRAFFIC', src_port_name, dst_port_name))
-        if pkt.haslayer(ARP):
-            arp = pkt.getlayer(ARP)
-            if arp.op == arp.is_at:
-                connections.append(('ARP/IS_AT', arp.hwsrc, arp.psrc))
-            elif arp.op == arp.who_has:
-                connections.append(('ARP/WHO_HAS', arp.hwsrc, arp.pdst))
-        elif pkt.haslayer(DHCP):
+        if pkt.haslayer(DHCP):
             bootp = pkt.getlayer(BOOTP)
             dhcp = pkt.getlayer(DHCP)
             options = {}
@@ -149,6 +143,12 @@ def do_dpi(pkt):
                         connections.append(('DHCP/ACK/DOMAIN', pkt.addr2, domain.decode().replace('\x00', '')))
             else:
                 logger.debug('DHCP unknown message-type', options['message-type'])
+    elif pkt.haslayer(ARP):
+        arp = pkt.getlayer(ARP)
+        if arp.op == arp.is_at:
+            connections.append(('ARP/IS_AT', arp.hwsrc, arp.psrc))
+        elif arp.op == arp.who_has:
+            connections.append(('ARP/WHO_HAS', arp.hwsrc, arp.pdst))
     return connections
 
 
