@@ -41,7 +41,7 @@ def get_connection(connection_type, from_node_name, to_node_name):
     elif connection_type in ['EAP/IDENTITY/RECV_RESPONSE']:
         from_node = Node('identity', identity=from_node_name)
         to_node = Node('device', mac_address=to_node_name)
-    elif connection_type in ['ARP/IS_AT', 'ARP/WHO_HAS', 'DHCP/ACK/ROUTER', 'DHCP/ACK/NAME_SERVER', 'DHCP/OFFER/ROUTER', 'DHCP/OFFER/NAME_SERVER', 'BOOTP/YIADDR']:
+    elif connection_type in ['ARP/IS_AT', 'ARP/WHO_HAS', 'DHCP/ACK/ROUTER', 'DHCP/ACK/NAME_SERVER', 'DHCP/OFFER/ROUTER', 'DHCP/OFFER/NAME_SERVER', 'BOOTP/YIADDR', 'ETHER/IP/TRANSMITS_IP', 'ETHER/IP/RECEIVES_IP']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('ip', ip=to_node_name)
     elif connection_type in ['DHCP/DISCOVER/HOSTNAME', 'DHCP/ACK/DOMAIN', 'DHCP/OFFER/DOMAIN']:
@@ -101,6 +101,8 @@ def do_dpi(pkt):
             logger.debug('DEBUG: Unknown EAP code', eap.code)
     elif pkt.haslayer(IP):
         ip = pkt.getlayer(IP)
+        connections.append(('ETHER/IP/TRANSMITS_IP', pkt.addr2, ip.src))
+        connections.append(('ETHER/IP/RECEIVES_IP', pkt.addr1, ip.dst))
         port_type = 'ERROR'
         if pkt.haslayer(UDP):
             port_type = 'udp'
