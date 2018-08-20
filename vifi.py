@@ -43,7 +43,7 @@ def get_connection(connection_type, from_node_name, to_node_name):
         to_node = Node('device', mac_address=to_node_name)
     elif connection_type in ['ARP/IS_AT', 'ARP/WHO_HAS', 'DHCP/ACK/ROUTER', 'DHCP/ACK/NAME_SERVER', 'DHCP/OFFER/ROUTER', 'DHCP/OFFER/NAME_SERVER', 'BOOTP/YIADDR', 'ETHER/IP/TRANSMITS_IP', 'ETHER/IP/RECEIVES_IP']:
         from_node = Node('device', mac_address=from_node_name)
-        to_node = Node('ip', ip=to_node_name)
+        to_node = Node('ip', ip_address=to_node_name)
     elif connection_type in ['DHCP/DISCOVER/HOSTNAME', 'DHCP/ACK/DOMAIN', 'DHCP/OFFER/DOMAIN']:
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('hostname', hostname=to_node_name)
