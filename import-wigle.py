@@ -1,6 +1,8 @@
 import sqlite3, requests, os
 from py2neo.database import Graph, Node, Relationship
 from sys import argv
+
+
 def get_human_address_display_string(road, housenumber, city, region, country):
     s = '{} {}, {}, {}, {}'.format(road, housenumber, city, region, country)
     while '  ' in s:
@@ -10,6 +12,8 @@ def get_human_address_display_string(road, housenumber, city, region, country):
     while ', ,' in s:
         s = s.replace(', ,', ', ').replace('  ', ' ')
     return s
+
+
 def register_connection(connection, from_node_name, to_node_name):
     from_node, to_node = None, None
     if connection in ['WIFI/MGMT/BEACON']:
@@ -25,6 +29,10 @@ def register_connection(connection, from_node_name, to_node_name):
         (lat, lon, altitude, level, accuracy) = to_node_name
         from_node = Node('device', mac_address=from_node_name)
         to_node = Node('signal_measurement', lat=lat, lon=lon, altitude=altitude, level=level, accuracy=accuracy)
+    elif connection in ['WIFI/WIGLE/SSID/SIGNAL_STRENGTH']:
+        (lat, lon, altitude, level, accuracy) = to_node_name
+        from_node = Node('device', mac_address=from_node_name)
+        to_node = Node('signal_measurement', lat=lat, lon=lon, altitude=altitude, level=level, accuracy=accuracy)
     elif connection in ['WIFI/WIGLE/BSSID/POS/HUMAN']:
         (road, housenumber, city, region, country) = to_node_name
         from_node = Node('device', mac_address=from_node_name)
@@ -37,6 +45,7 @@ def register_connection(connection, from_node_name, to_node_name):
         raise Exception('Unknown connection type', connection)
     rel = Relationship(from_node, connection, to_node)
     graph.merge(rel)
+
 
 def handle_db(filename):
     print('Loading', filename)
@@ -57,27 +66,70 @@ def handle_db(filename):
         register_connection('WIFI/WIGLE/BSSID/POS/LAST', bssid, (lastlat, lastlon))
     conn.close()
 
-def get_wigle_online_data(ap_mac, essid):
-    return requests.get('https://api.wigle.net/api/v2/network/search?netid={}&ssid={}'.format(ap_mac,essid), headers={'Authorization':'Basic ' + os.environ['WIGLE_AUTH']}).json()
+
+def get_wigle_network_search_data(ap_mac, essid):
+    return requests.get('https://api.wigle.net/api/v2/network/search?netid={}&ssid={}'.format(ap_mac, essid), headers={'Authorization': 'Basic ' + os.environ['WIGLE_AUTH']}).json()
+
+
+def get_wigle_network_detail_data(ap_mac):
+    return requests.get('https://api.wigle.net/api/v2/network/detail?netid={}'.format(ap_mac), headers={'Authorization': 'Basic ' + os.environ['WIGLE_AUTH']}).json()
+
 
 def handle_online():
     print('Loading online')
-    pairs_done = []
-    for _ in graph.run('MATCH p=(:device)-[:`WIFI/MGMT/BEACON`|:`WIFI/MGMT/PROBE_RESPONSE/MAC_SENT_SSID`]-(:network) RETURN p'):
-        rel = _['p']
-        ap_mac, essid = rel.start_node()['mac_address'], rel.end_node()['essid']
-        print(ap_mac, essid)
-        if (ap_mac, essid) in pairs_done:
-            continue
-        pairs_done.append((ap_mac, essid))
-        j = get_wigle_online_data(ap_mac, essid)
-        if not j['success']: raise Exception(j['message'])
+    load_network_search_data = True
+    load_network_detail_data = True
+
+    def _get_network_search_data(ap_mac, essid):
+        j = get_wigle_network_search_data(ap_mac, essid)
+        if not j['success']:
+            print(j['message'])
+            return False
+        register_connection('WIFI/MGMT/BEACON', ap_mac, essid)
         for result in j['results']:
             trilat, trilong, housenumber, road, city, region, country = result['trilat'], result['trilong'], result['housenumber'], result['road'], result['city'], result['region'], result['country']
             register_connection('WIFI/WIGLE/BSSID/POS/ONLINE', ap_mac, (trilat, trilong))
             register_connection('WIFI/WIGLE/SSID/POS/ONLINE', essid, (trilat, trilong))
             register_connection('WIFI/WIGLE/BSSID/POS/HUMAN', ap_mac, (road, housenumber, city, region, country))
             register_connection('WIFI/WIGLE/SSID/POS/HUMAN', essid, (road, housenumber, city, region, country))
+        return True
+
+    def _get_network_detail_data(ap_mac):
+        j = get_wigle_network_detail_data(ap_mac)
+        if not j['success']:
+            print(j['message'])
+            return False
+        for result in j['results']:
+            trilat, trilong, ssid, housenumber, road, city, region, country = result['trilat'], result['trilong'], result['ssid'], result['housenumber'], result['road'], result['city'], result['region'], result['country']
+            register_connection('WIFI/MGMT/BEACON', ap_mac, ssid)
+            register_connection('WIFI/WIGLE/BSSID/POS/ONLINE', ap_mac, (trilat, trilong))
+            register_connection('WIFI/WIGLE/SSID/POS/ONLINE', ssid, (trilat, trilong))
+            if not any([_ is None for _ in (housenumber, road, city, region, country)]):
+                register_connection('WIFI/WIGLE/BSSID/POS/HUMAN', ap_mac, (road, housenumber, city, region, country))
+                register_connection('WIFI/WIGLE/SSID/POS/HUMAN', ssid, (road, housenumber, city, region, country))
+            for measurement in result['locationData']:
+                register_connection('WIFI/WIGLE/BSSID/SIGNAL_STRENGTH', ap_mac, (measurement['latitude'], measurement['longitude'], measurement['alt'], measurement['signal'], measurement['accuracy']))
+                register_connection('WIFI/WIGLE/SSID/SIGNAL_STRENGTH', ssid, (measurement['latitude'], measurement['longitude'], measurement['alt'], measurement['signal'], measurement['accuracy']))
+
+        return True
+
+    pairs_done = []
+    for _ in graph.run(
+        'MATCH p=(d:device)-[:`WIFI/MGMT/BEACON`|:`WIFI/MGMT/PROBE_RESPONSE/MAC_SENT_SSID`]-(n:network)'
+        'WHERE NOT (d)-[:`WIFI/WIGLE/BSSID/POS/ONLINE`]-()'
+        'RETURN p'):
+        rel = _['p']
+        ap_mac, essid = rel.start_node()['mac_address'], rel.end_node()['essid']
+        print(ap_mac, essid)
+        if (ap_mac, essid) in pairs_done:
+            continue
+        pairs_done.append((ap_mac, essid))
+        if load_network_search_data and not _get_network_search_data(ap_mac, essid):
+            load_network_search_data = False
+        if load_network_detail_data and not _get_network_detail_data(ap_mac):
+            load_network_detail_data = False
+        if (not load_network_search_data) and (not load_network_detail_data):
+            raise Exception('Something went dead')
 
 
 
