@@ -77,6 +77,8 @@ def get_wigle_network_detail_data(ap_mac):
 
 def handle_online():
     print('Loading online')
+    if 'WIGLE_AUTH' not in os.environ:
+        raise Exception('WIGLE_AUTH not set')
     load_network_search_data = True
     load_network_detail_data = True
 
