@@ -26,7 +26,7 @@ def register_connection(connection, from_node_name, to_node_name):
         to_node = Node('network', essid=to_node_name)
     elif connection in ['WIFI/WIGLE/BSSID/POS/BEST', 'WIFI/WIGLE/BSSID/POS/LAST', 'WIFI/WIGLE/BSSID/POS/ONLINE']:
         from_node = Node('device', mac_address=from_node_name)
-        to_node = Node('pos2d', lat=to_node_name[0], lon=to_node_name[1])
+        to_node = Node('pos2d', lat=to_node_name[0], lon=to_node_name[1], display_string=','.join([str(_) for _ in to_node_name]))
     elif connection in ['WIFI/WIGLE/SSID/POS/BEST', 'WIFI/WIGLE/SSID/POS/LAST', 'WIFI/WIGLE/SSID/POS/ONLINE']:
         from_node = Node('network', essid=from_node_name)
         to_node = Node('pos2d', lat=to_node_name[0], lon=to_node_name[1], display_string=','.join([str(_) for _ in to_node_name]))
