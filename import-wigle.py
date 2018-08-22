@@ -4,16 +4,19 @@ from sys import argv
 
 
 def get_human_address_display_string(road, housenumber, city, region, country):
-    s = '{} {}, {}, {}, {}'.format(road, housenumber, city, region, country)
-    while '  ' in s:
-        s = s.replace('  ', ' ')
-    while ' ,' in s:
-        s = s.replace(' ,', ',').replace('  ', ' ')
-    while ', ,' in s:
-        s = s.replace(', ,', ', ').replace('  ', ' ')
-    while ',,' in s:
-        s = s.replace(',,', ',')
-    return s.strip()
+    s = ''
+    if road is not None and road.strip() != '':
+        s += road.strip()
+        if housenumber is not None and housenumber.strip() != '':
+            s += housenumber.strip()
+        s += ', '
+    if city is not None and city.strip() != '':
+        s += city.strip() + ', '
+    if region is not None and region.strip() != '':
+        s += region.strip() + ', '
+    if country is not None and country.strip() != '':
+        s += country.strip()
+    return s
 
 
 def register_connection(connection, from_node_name, to_node_name):
@@ -69,12 +72,29 @@ def handle_db(filename):
     conn.close()
 
 
-def get_wigle_network_search_data(ap_mac, essid):
-    return requests.get('https://api.wigle.net/api/v2/network/search?netid={}&ssid={}'.format(ap_mac, essid), headers={'Authorization': 'Basic ' + os.environ['WIGLE_AUTH']}).json()
+def get_wigle_data(*args, **kwargs):
+    url = 'https://api.wigle.net/api/v2/' + '/'.join(args) + '?'
+    for k in kwargs.keys():
+        url += k + '=' + kwargs[k]
+    return requests.get(url, headers={
+        'Authorization': 'Basic ' + os.environ['WIGLE_AUTH']
+        }).json()
+
+
+def get_wigle_network_search_data(ap_mac=None, essid=None):
+    if ap_mac is not None:
+        if essid is not None:
+            return get_wigle_data('network', 'search', netid=ap_mac, ssid=essid)
+        else:
+            return get_wigle_data('network', 'search', netid=ap_mac)
+    elif essid is not None:
+        return get_wigle_data('network', 'search', ssid=essid)
+    else:
+        raise Exception('Neither ap_mac nor essid set')
 
 
 def get_wigle_network_detail_data(ap_mac):
-    return requests.get('https://api.wigle.net/api/v2/network/detail?netid={}'.format(ap_mac), headers={'Authorization': 'Basic ' + os.environ['WIGLE_AUTH']}).json()
+    return get_wigle_data('network', 'detail', netid=ap_mac)
 
 
 def handle_online():
