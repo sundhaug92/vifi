@@ -11,7 +11,9 @@ def get_human_address_display_string(road, housenumber, city, region, country):
         s = s.replace(' ,', ',').replace('  ', ' ')
     while ', ,' in s:
         s = s.replace(', ,', ', ').replace('  ', ' ')
-    return s
+    while ',,' in s:
+        s = s.replace(',,', ',')
+    return s.strip()
 
 
 def register_connection(connection, from_node_name, to_node_name):
