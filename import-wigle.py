@@ -1,4 +1,4 @@
-import sqlite3, requests, os
+import sqlite3, requests, os, urllib.request
 from py2neo.database import Graph, Node, Relationship
 from sys import argv
 
@@ -75,7 +75,7 @@ def handle_db(filename):
 def get_wigle_data(*args, **kwargs):
     url = 'https://api.wigle.net/api/v2/' + '/'.join(args) + '?'
     for k in kwargs.keys():
-        url += k + '=' + kwargs[k]
+        url += k + '=' + urllib.request.pathname2url(kwargs[k])
     return requests.get(url, headers={
         'Authorization': 'Basic ' + os.environ['WIGLE_AUTH']
         }).json()
