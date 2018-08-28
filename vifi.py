@@ -160,7 +160,7 @@ def do_dpi(pkt):
                 elif pkt.haslayer(HTTPRequest):
                     http_request = http.getlayer(HTTPRequest)
                     if 'Host' in http_request.fields:
-                        connections.append(('HTTP/REQUEST/HOST', ip.dst, http_request.fields['Host'].decode()))
+                        connections.append(('HTTP/REQUEST/HOST', ip.src, http_request.fields['Host'].decode()))
                     if 'User-Agent' in http_request.fields:
                         connections.append(('HTTP/REQUEST/USER_AGENT', ip.src, http_request.fields['User-Agent'].decode()))
     elif pkt.haslayer(ARP):
