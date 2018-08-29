@@ -62,6 +62,9 @@ def get_connection(connection_type, from_node_name, to_node_name):
     elif connection_type in ['HTTP/REQUEST/USER_AGENT']:
         from_node = Node('ip', ip_address=from_node_name)
         to_node = Node('useragent', ua_string=to_node_name)
+    elif connection_type in ['HTTP/REQUEST/PATH_REQUESTED']:
+        from_node = Node('ip', ip_address=from_node_name)
+        to_node = Node('resource', uri=to_node_name)
     if from_node is None or to_node is None:
         logger.debug('connection_type', connection_type, 'from_node_name', from_node_name, 'from_node', from_node, 'to_node_name', to_node_name, 'to_node', to_node)
         raise Exception('Unknown connection type {}'.format(connection_type))
@@ -161,6 +164,11 @@ def do_dpi(pkt):
                     http_request = http.getlayer(HTTPRequest)
                     if 'Host' in http_request.fields:
                         connections.append(('HTTP/REQUEST/HOST', ip.src, http_request.fields['Host'].decode()))
+                    if 'Path' in http_request.fields:
+                        hostname = http_request.fields['Host'].decode() if 'Host' in http_request.fields else ip.dst
+                        path = http_request.fields['Path'].decode()
+                        full_path = 'http://' + hostname + path
+                        connections.append(('HTTP/REQUEST/PATH_REQUESTED', ip.src, full_path))
                     if 'User-Agent' in http_request.fields:
                         connections.append(('HTTP/REQUEST/USER_AGENT', ip.src, http_request.fields['User-Agent'].decode()))
     elif pkt.haslayer(ARP):
