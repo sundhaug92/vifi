@@ -20,13 +20,19 @@ def register_connection(connection_type, from_node_name, to_node_name):
     graph.merge(rel)
 
 
+def ip_to_str(ip):
+    if ':' in ip:
+        return '[' + ip + ']'
+    return ip
+
+
 graph = Graph(password='password')  # TODO: parameterize, don't hardcode password
 
 for filename in sys.argv[1:]:
     tree = etree.XML(open(filename, 'rb').read())
     for host in tree.xpath('//host'):
         for address in host.xpath('./address'):
-            addr = address.get('addr')
+            addr = ip_to_str(address.get('addr'))
             for hostname in host.xpath('./hostnames/hostname'):
                 hostname_name = hostname.get('name')
                 register_connection('IP/RESOLVED_HOSTNAME', addr, hostname_name)
@@ -37,7 +43,7 @@ for filename in sys.argv[1:]:
                 register_connection('IP/PORT', addr, (protocol, portid))
             prev_hop = None
             for hop in host.xpath('./trace/hop'):
-                register_connection('IP/RESOLVED_HOSTNAME', hop.get('ipaddr'), hop.get('host'))
+                register_connection('IP/RESOLVED_HOSTNAME', ip_to_str(hop.get('ipaddr')), hop.get('host'))
                 if prev_hop is not None:
-                    register_connection('IP/ROUTES', prev_hop, hop.get('ipaddr'))
-                prev_hop = hop.get('ipaddr')
+                    register_connection('IP/ROUTES', prev_hop, ip_to_str(hop.get('ipaddr')))
+                prev_hop = ip_to_str(hop.get('ipaddr'))
