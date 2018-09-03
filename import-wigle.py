@@ -44,7 +44,7 @@ def register_connection(connection, from_node_name, to_node_name):
         to_node = Node('human_address', road=road, housenumber=housenumber, city=city, region=region, country=country, display_string=get_human_address_display_string(road, housenumber, city, region, country))
     elif connection in ['WIFI/WIGLE/SSID/POS/HUMAN']:
         (road, housenumber, city, region, country) = to_node_name
-        from_node = Node('device', mac_address=from_node_name)
+        from_node = Node('network', essid=from_node_name)
         to_node = Node('human_address', road=road, housenumber=housenumber, city=city, region=region, country=country, display_string=get_human_address_display_string(road, housenumber, city, region, country))
     if None in [from_node, to_node]:
         raise Exception('Unknown connection type', connection)
