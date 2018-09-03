@@ -200,7 +200,8 @@ def PacketHandler(pkt):
                 connections.append(('WIFI/MGMT/BEACON', pkt.addr2, pkt.info.decode()))
         elif pkt.type == 2:
             # TODO: Find out who sends what to whom, add ETHER/GEN/MAC_TO_MAC
-            connections += do_dpi(pkt)
+            if pkt.FCfield & 0x40 == 0:
+                connections += do_dpi(pkt)
     else:
         connections += do_dpi(pkt)
     return connections
