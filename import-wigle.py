@@ -36,7 +36,7 @@ def register_connection(connection, from_node_name, to_node_name):
         to_node = Node('signal_measurement', lat=lat, lon=lon, altitude=altitude, level=level, accuracy=accuracy)
     elif connection in ['WIFI/WIGLE/SSID/SIGNAL_STRENGTH']:
         (lat, lon, altitude, level, accuracy) = to_node_name
-        from_node = Node('device', mac_address=from_node_name)
+        from_node = Node('network', essid=from_node_name)
         to_node = Node('signal_measurement', lat=lat, lon=lon, altitude=altitude, level=level, accuracy=accuracy)
     elif connection in ['WIFI/WIGLE/BSSID/POS/HUMAN']:
         (road, housenumber, city, region, country) = to_node_name
