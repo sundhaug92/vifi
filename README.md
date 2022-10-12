@@ -17,7 +17,7 @@ Originally developed under contract for [University of Southeast Norway](https:/
 ```bash
 python3 vifi.py test.cap # Load data from one PCAP
 python3 vifi.py *.cap # Load data from all PCAPs in folder
-python3 wlan0 # Load data from wlan0 (must be in monitor mode and on the correct channel)
+python3 vifi.py wlan0 # Load data from wlan0 (must be in monitor mode and on the correct channel)
 ```
 
 ## Useful queries
